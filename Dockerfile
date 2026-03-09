@@ -35,11 +35,12 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+
+# Migration script (no prisma CLI needed)
+COPY migrate.js ./migrate.js
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
