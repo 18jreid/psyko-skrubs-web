@@ -9,7 +9,6 @@ export interface AllstarClipCardProps {
   userAvatar: string;
   createdAt: string;
   views: number;
-  game: string;
 }
 
 function relativeDate(iso: string): string {
@@ -40,7 +39,6 @@ export default function AllstarClipCard({
   userAvatar,
   createdAt,
   views,
-  game,
 }: AllstarClipCardProps) {
   const clipUrl = allstarClipUrl(shareId);
   const isValidThumb =
@@ -94,15 +92,6 @@ export default function AllstarClipCard({
             </svg>
           </div>
         </div>
-
-        {/* CS2 badge */}
-        {game && (
-          <div className="absolute top-2 left-2">
-            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-500/90 text-white uppercase tracking-wider">
-              {game === "cs2" || game === "CS2" ? "CS2" : game}
-            </span>
-          </div>
-        )}
 
         {/* View count */}
         <div className="absolute bottom-2 right-2">

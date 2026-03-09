@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Psyko Skrubs | CS2 Gaming Group",
   description:
-    "The official hub for Psyko Skrubs - clips, rankings, and game requests for our CS2 gaming crew.",
+    "The official CS2 hub for Psyko Skrubs — stats, rankings, and highlight clips for our Counter-Strike 2 crew.",
 };
 
 export default function RootLayout({

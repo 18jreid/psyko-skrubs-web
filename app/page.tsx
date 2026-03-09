@@ -61,7 +61,7 @@ export default async function HomePage() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-400 text-xs font-medium tracking-wider uppercase mb-4">
             <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
-            CS2 Gaming Group
+            Counter-Strike 2
           </div>
           <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-3">
             <span className="text-white">PSYKO</span>{" "}
@@ -160,7 +160,7 @@ export default async function HomePage() {
                 <span className="text-orange-500">Clips</span>
               </h2>
               <p className="text-gray-500 text-sm mt-1">
-                Auto-pulled from Allstar.gg for all members
+                CS2 highlights auto-pulled from Allstar.gg
               </p>
             </div>
             {clips.length > 0 && (
@@ -186,7 +186,6 @@ export default async function HomePage() {
                     userAvatar={clip.userAvatar}
                     createdAt={clip.createdAt}
                     views={clip.views}
-                    game={clip.game}
                   />
                 ))}
               </div>
