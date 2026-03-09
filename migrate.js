@@ -78,6 +78,10 @@ const migrations = [
     sql: `ALTER TABLE "User" ADD COLUMN "cs2Elo" INTEGER;`,
   },
   {
+    name: "20260309_add_minecraft_username",
+    sql: `ALTER TABLE "User" ADD COLUMN "minecraftUsername" TEXT;`,
+  },
+  {
     name: "20260309_add_feature_requests",
     sql: `
       CREATE TABLE IF NOT EXISTS "FeatureRequest" (
