@@ -20,14 +20,15 @@ export interface AllstarProfile {
 }
 
 const PROFILE_QUERY = `
-  query GetProfile($steamId: String!) {
+  query GetProfile($steamId: String!, $after: String) {
     profile(query: $steamId) {
       ... on User {
         id
         username
         avatarUrl
         clipCount
-        clips(first: 20) {
+        clips(first: 20, after: $after) {
+          pageInfo { hasNextPage endCursor }
           edges {
             node {
               id
@@ -45,7 +46,8 @@ const PROFILE_QUERY = `
         id
         avatarUrl
         clipCount
-        clips(first: 20) {
+        clips(first: 20, after: $after) {
+          pageInfo { hasNextPage endCursor }
           edges {
             node {
               id
@@ -79,6 +81,7 @@ interface GraphQLProfile {
   avatarUrl: string;
   clipCount: number;
   clips: {
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
     edges: { node: GraphQLClipNode }[];
   };
 }
@@ -90,43 +93,65 @@ interface GraphQLResponse {
   errors?: { message: string }[];
 }
 
+async function fetchProfilePage(
+  steamId: string,
+  after: string | null
+): Promise<GraphQLProfile | null> {
+  const res = await fetch(ALLSTAR_GRAPHQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://allstar.gg",
+      Referer: "https://allstar.gg/",
+    },
+    body: JSON.stringify({
+      query: PROFILE_QUERY,
+      variables: { steamId, after },
+    }),
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) return null;
+  const json: GraphQLResponse = await res.json();
+  return json?.data?.profile ?? null;
+}
+
 export async function getAllstarProfile(
   steamId: string
 ): Promise<AllstarProfile | null> {
   try {
-    const res = await fetch(ALLSTAR_GRAPHQL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: "https://allstar.gg",
-        Referer: "https://allstar.gg/",
-      },
-      body: JSON.stringify({ query: PROFILE_QUERY, variables: { steamId } }),
-      next: { revalidate: 300 },
-    });
+    // Fetch first page to get profile metadata
+    const first = await fetchProfilePage(steamId, null);
+    if (!first) return null;
 
-    if (!res.ok) return null;
+    const allNodes: GraphQLClipNode[] = [];
 
-    const json: GraphQLResponse = await res.json();
-    const profile = json?.data?.profile;
-    if (!profile) return null;
-
-    const clips: AllstarClip[] =
-      profile.clips?.edges
-        ?.map((e) => e.node)
+    const extractNodes = (profile: GraphQLProfile) =>
+      (profile.clips?.edges ?? [])
+        .map((e) => e.node)
         .filter(
           (n): n is GraphQLClipNode =>
-            !!n &&
-            typeof n.shareId === "string" &&
-            n.shareId.length > 0
-        ) ?? [];
+            !!n && typeof n.shareId === "string" && n.shareId.length > 0
+        );
+
+    allNodes.push(...extractNodes(first));
+
+    // Paginate through remaining pages (cap at 10 pages = 200 clips)
+    let pageInfo = first.clips?.pageInfo;
+    let page = 1;
+    while (pageInfo?.hasNextPage && pageInfo.endCursor && page < 10) {
+      const next = await fetchProfilePage(steamId, pageInfo.endCursor);
+      if (!next) break;
+      allNodes.push(...extractNodes(next));
+      pageInfo = next.clips?.pageInfo;
+      page++;
+    }
 
     return {
-      id: profile.id,
-      username: profile.username,
-      avatarUrl: profile.avatarUrl,
-      clipCount: profile.clipCount ?? 0,
-      clips,
+      id: first.id,
+      username: first.username,
+      avatarUrl: first.avatarUrl,
+      clipCount: first.clipCount ?? 0,
+      clips: allNodes,
       steamId,
     };
   } catch {
