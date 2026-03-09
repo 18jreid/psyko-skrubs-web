@@ -29,6 +29,7 @@ export default function Navbar() {
             <NavLink href="/">Home</NavLink>
             <NavLink href="/clips">Clips</NavLink>
             <NavLink href="/rankings">Rankings</NavLink>
+            <NavLink href="/minecraft">Minecraft</NavLink>
             <NavLink href="/feature-requests">Requests</NavLink>
           </div>
 
@@ -94,6 +95,9 @@ export default function Navbar() {
             </MobileNavLink>
             <MobileNavLink href="/rankings" onClick={() => setMenuOpen(false)}>
               Rankings
+            </MobileNavLink>
+            <MobileNavLink href="/minecraft" onClick={() => setMenuOpen(false)}>
+              Minecraft
             </MobileNavLink>
             <MobileNavLink href="/feature-requests" onClick={() => setMenuOpen(false)}>
               Requests
