@@ -74,6 +74,10 @@ const migrations = [
     sql: `ALTER TABLE "User" ADD COLUMN "leetifyToken" TEXT;`,
   },
   {
+    name: "20260309_add_cs2_elo",
+    sql: `ALTER TABLE "User" ADD COLUMN "cs2Elo" INTEGER;`,
+  },
+  {
     name: "20260309_add_feature_requests",
     sql: `
       CREATE TABLE IF NOT EXISTS "FeatureRequest" (

@@ -13,6 +13,7 @@ model User {
   avatar        String
   profileUrl    String
   leetifyToken  String?
+  cs2Elo        Int?
   createdAt     DateTime      @default(now())
   clips           Clip[]
   clipLikes       ClipLike[]
