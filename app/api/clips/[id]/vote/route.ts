@@ -6,14 +6,14 @@ import { randomUUID } from "crypto";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ shareId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { shareId } = await params;
+  const { id: shareId } = await params;
   const { value } = await req.json();
 
   if (value !== 1 && value !== -1) {
