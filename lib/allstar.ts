@@ -118,7 +118,8 @@ export async function getAllstarProfile(
           (n): n is GraphQLClipNode =>
             !!n &&
             typeof n.shareId === "string" &&
-            n.shareId.length > 0
+            n.shareId.length > 0 &&
+            n.game?.toLowerCase() === "cs2"
         ) ?? [];
 
     return {

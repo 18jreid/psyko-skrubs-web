@@ -108,7 +108,6 @@ export default function ClipsFilterBar({ clips, players }: ClipsFilterBarProps) 
               userAvatar={clip.userAvatar}
               createdAt={clip.createdAt}
               views={clip.views}
-              game={clip.game}
             />
           ))}
         </div>

@@ -29,7 +29,6 @@ export default function Navbar() {
             <NavLink href="/">Home</NavLink>
             <NavLink href="/clips">Clips</NavLink>
             <NavLink href="/rankings">Rankings</NavLink>
-            <NavLink href="/requests">Requests</NavLink>
           </div>
 
           {/* Auth */}
@@ -94,9 +93,6 @@ export default function Navbar() {
             </MobileNavLink>
             <MobileNavLink href="/rankings" onClick={() => setMenuOpen(false)}>
               Rankings
-            </MobileNavLink>
-            <MobileNavLink href="/requests" onClick={() => setMenuOpen(false)}>
-              Requests
             </MobileNavLink>
             <div className="pt-2 border-t border-gray-800">
               {session ? (
