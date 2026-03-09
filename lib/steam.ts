@@ -28,6 +28,15 @@ export interface CS2Stats {
   total_time_played: number;
   kd_ratio: number;
   hours_played: number;
+  total_shots_fired: number;
+  total_shots_hit: number;
+  total_headshot_kills: number;
+  total_mvps: number;
+  total_rounds_played: number;
+  total_matches_played: number;
+  accuracy: number;       // shots_hit / shots_fired %
+  headshot_pct: number;   // headshot_kills / kills %
+  win_rate: number;       // wins / matches_played %
 }
 
 export interface SteamGame {
@@ -72,17 +81,37 @@ export async function getCS2Stats(steamId: string): Promise<CS2Stats | null> {
     const total_deaths = statsMap["total_deaths"] ?? 0;
     const total_wins = statsMap["total_wins"] ?? 0;
     const total_time_played = statsMap["total_time_played"] ?? 0;
+    const total_shots_fired = statsMap["total_shots_fired"] ?? 0;
+    const total_shots_hit = statsMap["total_shots_hit"] ?? 0;
+    const total_headshot_kills = statsMap["total_kills_headshot"] ?? 0;
+    const total_mvps = statsMap["total_mvps"] ?? 0;
+    const total_rounds_played = statsMap["total_rounds_played"] ?? 0;
+    const total_matches_played = statsMap["total_matches_played"] ?? 0;
 
     return {
       total_kills,
       total_deaths,
       total_wins,
       total_time_played,
-      kd_ratio:
-        total_deaths > 0
-          ? Math.round((total_kills / total_deaths) * 100) / 100
-          : total_kills,
+      total_shots_fired,
+      total_shots_hit,
+      total_headshot_kills,
+      total_mvps,
+      total_rounds_played,
+      total_matches_played,
+      kd_ratio: total_deaths > 0
+        ? Math.round((total_kills / total_deaths) * 100) / 100
+        : total_kills,
       hours_played: Math.round(total_time_played / 3600),
+      accuracy: total_shots_fired > 0
+        ? Math.round((total_shots_hit / total_shots_fired) * 1000) / 10
+        : 0,
+      headshot_pct: total_kills > 0
+        ? Math.round((total_headshot_kills / total_kills) * 1000) / 10
+        : 0,
+      win_rate: total_matches_played > 0
+        ? Math.round((total_wins / total_matches_played) * 1000) / 10
+        : 0,
     };
   } catch {
     return null;
