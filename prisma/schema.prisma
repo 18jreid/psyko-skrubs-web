@@ -14,10 +14,12 @@ model User {
   profileUrl    String
   leetifyToken  String?
   createdAt     DateTime      @default(now())
-  clips        Clip[]
-  clipLikes    ClipLike[]
-  gameVotes    GameVote[]
-  gameRequests GameRequest[]
+  clips           Clip[]
+  clipLikes       ClipLike[]
+  gameVotes       GameVote[]
+  gameRequests    GameRequest[]
+  featureRequests FeatureRequest[]
+  featureVotes    FeatureVote[]
 }
 
 model Clip {
@@ -63,4 +65,26 @@ model GameVote {
   gameRequest   GameRequest @relation(fields: [gameRequestId], references: [id])
 
   @@unique([userId, gameRequestId])
+}
+
+model FeatureRequest {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  title       String
+  description String?
+  status      String        @default("open")
+  createdAt   DateTime      @default(now())
+  votes       FeatureVote[]
+}
+
+model FeatureVote {
+  id               String         @id @default(cuid())
+  userId           String
+  featureRequestId String
+  value            Int
+  user             User           @relation(fields: [userId], references: [id])
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id])
+
+  @@unique([userId, featureRequestId])
 }

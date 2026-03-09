@@ -73,6 +73,29 @@ const migrations = [
     name: "20260309004255_add_leetify_token",
     sql: `ALTER TABLE "User" ADD COLUMN "leetifyToken" TEXT;`,
   },
+  {
+    name: "20260309_add_feature_requests",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "FeatureRequest" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "description" TEXT,
+        "status" TEXT NOT NULL DEFAULT 'open',
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "FeatureRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS "FeatureVote" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "featureRequestId" TEXT NOT NULL,
+        "value" INTEGER NOT NULL,
+        CONSTRAINT "FeatureVote_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "FeatureVote_featureRequestId_fkey" FOREIGN KEY ("featureRequestId") REFERENCES "FeatureRequest" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "FeatureVote_userId_featureRequestId_key" ON "FeatureVote"("userId", "featureRequestId");
+    `,
+  },
 ];
 
 for (const migration of migrations) {
