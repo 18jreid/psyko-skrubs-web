@@ -7,17 +7,20 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  steamId       String        @unique
+  id            String    @id @default(cuid())
+  steamId       String    @unique
   username      String
   avatar        String
   profileUrl    String
   leetifyToken  String?
-  createdAt     DateTime      @default(now())
-  clips        Clip[]
-  clipLikes    ClipLike[]
-  gameVotes    GameVote[]
-  gameRequests GameRequest[]
+  cs2Elo        Int?
+  createdAt     DateTime  @default(now())
+  clips           Clip[]
+  clipLikes       ClipLike[]
+  gameVotes       GameVote[]
+  gameRequests    GameRequest[]
+  chatMessages    ChatMessage[]
+  seasonSnapshots SeasonSnapshot[]
 }
 
 model Clip {
@@ -63,4 +66,35 @@ model GameVote {
   gameRequest   GameRequest @relation(fields: [gameRequestId], references: [id])
 
   @@unique([userId, gameRequestId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Season {
+  id        String           @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime?
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  snapshots SeasonSnapshot[]
+}
+
+model SeasonSnapshot {
+  id        String   @id @default(cuid())
+  seasonId  String
+  userId    String
+  cs2Elo    Int?
+  rank      Int
+  season    Season   @relation(fields: [seasonId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([seasonId, userId])
 }

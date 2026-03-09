@@ -73,6 +73,46 @@ const migrations = [
     name: "20260309004255_add_leetify_token",
     sql: `ALTER TABLE "User" ADD COLUMN "leetifyToken" TEXT;`,
   },
+  {
+    name: "20260309_add_cs2_elo",
+    sql: `ALTER TABLE "User" ADD COLUMN "cs2Elo" INTEGER;`,
+  },
+  {
+    name: "20260309_add_chat",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "ChatMessage" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "ChatMessage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+    `,
+  },
+  {
+    name: "20260309_add_seasons",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "Season" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "startDate" DATETIME NOT NULL,
+        "endDate" DATETIME,
+        "isActive" INTEGER NOT NULL DEFAULT 1,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS "SeasonSnapshot" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "seasonId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "cs2Elo" INTEGER,
+        "rank" INTEGER NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "SeasonSnapshot_seasonId_fkey" FOREIGN KEY ("seasonId") REFERENCES "Season" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "SeasonSnapshot_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "SeasonSnapshot_seasonId_userId_key" ON "SeasonSnapshot"("seasonId", "userId");
+    `,
+  },
 ];
 
 for (const migration of migrations) {
