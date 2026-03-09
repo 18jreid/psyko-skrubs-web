@@ -1,0 +1,22 @@
+name: Deploy to TrueNAS (Dev)
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --platform linux/amd64 -t psyko-skrubs-web-dev:latest .
+
+      - name: Deploy
+        run: |
+          docker compose \
+            -p ix-psyko-skrubs-web-dev \
+            -f /mnt/.ix-apps/app_configs/psyko-skrubs-web-dev/versions/1.0.0/templates/rendered/docker-compose.yaml \
+            up -d --force-recreate
