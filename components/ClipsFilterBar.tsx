@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import AllstarClipCard from "@/components/AllstarClipCard";
 import type { AllstarClipWithUser } from "@/lib/allstar";
 
@@ -41,21 +41,22 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
     setVisibleCount(PAGE_SIZE);
   }, [playerFilter, sortBy]);
 
-  // Infinite scroll sentinel
-  const loadMore = useCallback(() => {
-    setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
-  }, [filtered.length]);
-
+  // Infinite scroll — re-attach observer after every load so it fires again
+  // if the sentinel is still in view after the new batch renders
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
+        }
+      },
       { rootMargin: "200px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore]);
+  }, [visibleCount, filtered.length]);
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
