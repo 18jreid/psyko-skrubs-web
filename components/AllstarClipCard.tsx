@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { allstarClipUrl } from "@/lib/allstar";
+import ClipVoteButtons from "@/components/ClipVoteButtons";
 
 export interface AllstarClipCardProps {
   shareId: string;
@@ -10,6 +11,9 @@ export interface AllstarClipCardProps {
   createdAt: string;
   views: number;
   game: string;
+  score?: number;
+  userVote?: number;
+  isLoggedIn?: boolean;
 }
 
 function relativeDate(iso: string): string {
@@ -41,6 +45,9 @@ export default function AllstarClipCard({
   createdAt,
   views,
   game,
+  score = 0,
+  userVote = 0,
+  isLoggedIn = false,
 }: AllstarClipCardProps) {
   const clipUrl = allstarClipUrl(shareId);
   const isValidThumb =
@@ -140,9 +147,17 @@ export default function AllstarClipCard({
             )}
             <span className="text-xs text-gray-400 truncate">{username}</span>
           </div>
-          <span className="text-[10px] text-gray-600 shrink-0 ml-2">
-            {relativeDate(createdAt)}
-          </span>
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            <ClipVoteButtons
+              shareId={shareId}
+              initialScore={score}
+              initialUserVote={userVote}
+              isLoggedIn={isLoggedIn}
+            />
+            <span className="text-[10px] text-gray-600">
+              {relativeDate(createdAt)}
+            </span>
+          </div>
         </div>
       </div>
     </a>

@@ -21,6 +21,66 @@ model User {
   gameRequests    GameRequest[]
   chatMessages    ChatMessage[]
   seasonSnapshots SeasonSnapshot[]
+  createdSessions GamingSession[] @relation("CreatedSessions")
+  sessionRsvps    SessionRsvp[]
+  achievements    Achievement[]
+  notifications   Notification[]
+  clipVotes       ClipVote[]
+}
+
+model GamingSession {
+  id          String        @id @default(cuid())
+  title       String
+  game        String
+  scheduledAt DateTime
+  createdById String
+  createdBy   User          @relation("CreatedSessions", fields: [createdById], references: [id])
+  rsvps       SessionRsvp[]
+  createdAt   DateTime      @default(now())
+}
+
+model SessionRsvp {
+  id        String        @id @default(cuid())
+  sessionId String
+  userId    String
+  status    String
+  session   GamingSession @relation(fields: [sessionId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+  createdAt DateTime      @default(now())
+
+  @@unique([sessionId, userId])
+}
+
+model Achievement {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  value     Float
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, type])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  refId     String?
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model ClipVote {
+  id      String @id @default(cuid())
+  userId  String
+  shareId String
+  value   Int
+  user    User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, shareId])
 }
 
 model Clip {

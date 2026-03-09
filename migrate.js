@@ -113,6 +113,72 @@ const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS "SeasonSnapshot_seasonId_userId_key" ON "SeasonSnapshot"("seasonId", "userId");
     `,
   },
+  {
+    name: "20260309_add_gaming_sessions",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "GamingSession" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "game" TEXT NOT NULL,
+        "scheduledAt" DATETIME NOT NULL,
+        "createdById" TEXT NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "GamingSession_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS "SessionRsvp" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "sessionId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "status" TEXT NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "SessionRsvp_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "GamingSession" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "SessionRsvp_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "SessionRsvp_sessionId_userId_key" ON "SessionRsvp"("sessionId", "userId");
+    `,
+  },
+  {
+    name: "20260309_add_achievements",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "Achievement" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "value" REAL NOT NULL,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Achievement_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "Achievement_userId_type_key" ON "Achievement"("userId", "type");
+    `,
+  },
+  {
+    name: "20260309_add_notifications",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "Notification" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "read" INTEGER NOT NULL DEFAULT 0,
+        "refId" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+    `,
+  },
+  {
+    name: "20260309_add_clip_votes",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "ClipVote" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "shareId" TEXT NOT NULL,
+        "value" INTEGER NOT NULL,
+        CONSTRAINT "ClipVote_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "ClipVote_userId_shareId_key" ON "ClipVote"("userId", "shareId");
+    `,
+  },
 ];
 
 for (const migration of migrations) {

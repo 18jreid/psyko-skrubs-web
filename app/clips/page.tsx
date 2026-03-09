@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getPlayerSummary as getSteamSummary } from "@/lib/steam";
 import { getAllstarClips as fetchAllstarClips } from "@/lib/allstar";
 import ClipsFilterBar from "@/components/ClipsFilterBar";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-async function getClipsData() {
+async function getClipsData(userId: string | null) {
   try {
     const users = await prisma.user.findMany({
       select: { id: true, steamId: true, username: true, avatar: true },
@@ -13,13 +15,11 @@ async function getClipsData() {
 
     const steamIds = users.map((u) => u.steamId);
 
-    // Enrich with Steam avatars then fetch Allstar clips
     const [summaries, clips] = await Promise.all([
       Promise.all(users.map((u) => getSteamSummary(u.steamId))),
       fetchAllstarClips(steamIds),
     ]);
 
-    // Build a map of steamId -> Steam display name & avatar for enriching clip cards
     const steamMap: Record<string, { username: string; avatar: string }> = {};
     users.forEach((u, i) => {
       steamMap[u.steamId] = {
@@ -28,7 +28,6 @@ async function getClipsData() {
       };
     });
 
-    // Enrich clip usernames/avatars with Steam data (Allstar usernames can differ)
     const enriched = clips.map((clip) => {
       const steam = steamMap[clip.steamId];
       return {
@@ -38,14 +37,31 @@ async function getClipsData() {
       };
     });
 
-    return { clips: enriched, totalCount: enriched.length };
+    // Hydrate vote scores
+    const shareIds = enriched.map((c) => c.shareId);
+    const votes = shareIds.length > 0
+      ? await prisma.clipVote.findMany({ where: { shareId: { in: shareIds } } })
+      : [];
+
+    const voteMap: Record<string, { score: number; userVote: number }> = {};
+    for (const shareId of shareIds) {
+      const clipVotes = votes.filter((v) => v.shareId === shareId);
+      voteMap[shareId] = {
+        score: clipVotes.reduce((sum, v) => sum + v.value, 0),
+        userVote: userId ? (clipVotes.find((v) => v.userId === userId)?.value ?? 0) : 0,
+      };
+    }
+
+    return { clips: enriched, totalCount: enriched.length, voteMap };
   } catch {
-    return { clips: [], totalCount: 0 };
+    return { clips: [], totalCount: 0, voteMap: {} };
   }
 }
 
 export default async function ClipsPage() {
-  const { clips, totalCount } = await getClipsData();
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id ?? null;
+  const { clips, totalCount, voteMap } = await getClipsData(userId);
 
   const players = Array.from(
     new Map(clips.map((c) => [c.username, { username: c.username, userAvatar: c.userAvatar }])).values()
@@ -83,7 +99,7 @@ export default async function ClipsPage() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {clips.length > 0 ? (
-          <ClipsFilterBar clips={clips} players={players} />
+          <ClipsFilterBar clips={clips} players={players} voteMap={voteMap} isLoggedIn={!!userId} />
         ) : (
           <div className="text-center py-24">
             <div className="w-24 h-24 bg-[#0d0d15] border border-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
