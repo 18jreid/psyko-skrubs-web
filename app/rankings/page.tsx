@@ -44,7 +44,7 @@ async function getRankings() {
 
 async function getSeasons() {
   try {
-    return await prisma.season.findMany({
+    const seasons = await prisma.season.findMany({
       orderBy: { startDate: "desc" },
       include: {
         snapshots: {
@@ -53,6 +53,17 @@ async function getSeasons() {
         },
       },
     });
+    // Serialize Date objects for client component props
+    return seasons.map((s) => ({
+      ...s,
+      startDate: s.startDate.toISOString(),
+      endDate: s.endDate?.toISOString() ?? null,
+      createdAt: s.createdAt.toISOString(),
+      snapshots: s.snapshots.map((snap) => ({
+        ...snap,
+        createdAt: snap.createdAt.toISOString(),
+      })),
+    }));
   } catch {
     return [];
   }
