@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { getPlayerSummary as getSteamSummary } from "@/lib/steam";
 import { getAllstarClips as fetchAllstarClips } from "@/lib/allstar";

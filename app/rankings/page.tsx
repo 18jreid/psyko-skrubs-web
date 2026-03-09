@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { getCS2Stats, getPlayerSummary } from "@/lib/steam";
 import RankingsTable from "@/components/RankingsTable";
