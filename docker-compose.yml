@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: psyko-skrubs
+    restart: unless-stopped
+    ports:
+      - "6969:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=file:./data/psyko-skrubs.db
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6969/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

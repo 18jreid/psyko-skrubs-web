@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String        @id @default(cuid())
+  steamId       String        @unique
+  username      String
+  avatar        String
+  profileUrl    String
+  leetifyToken  String?
+  createdAt     DateTime      @default(now())
+  clips        Clip[]
+  clipLikes    ClipLike[]
+  gameVotes    GameVote[]
+  gameRequests GameRequest[]
+}
+
+model Clip {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  title       String
+  url         String
+  platform    String
+  description String?
+  createdAt   DateTime   @default(now())
+  likes       ClipLike[]
+}
+
+model ClipLike {
+  id     String @id @default(cuid())
+  userId String
+  clipId String
+  user   User   @relation(fields: [userId], references: [id])
+  clip   Clip   @relation(fields: [clipId], references: [id])
+
+  @@unique([userId, clipId])
+}
+
+model GameRequest {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  steamAppId  String
+  gameName    String
+  headerImage String?
+  description String?
+  createdAt   DateTime   @default(now())
+  votes       GameVote[]
+}
+
+model GameVote {
+  id            String      @id @default(cuid())
+  userId        String
+  gameRequestId String
+  value         Int
+  user          User        @relation(fields: [userId], references: [id])
+  gameRequest   GameRequest @relation(fields: [gameRequestId], references: [id])
+
+  @@unique([userId, gameRequestId])
+}
