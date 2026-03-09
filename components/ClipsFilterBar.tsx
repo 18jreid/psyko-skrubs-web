@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import AllstarClipCard from "@/components/AllstarClipCard";
 import type { AllstarClipWithUser } from "@/lib/allstar";
+
+const PAGE_SIZE = 12;
 
 interface ClipsFilterBarProps {
   clips: AllstarClipWithUser[];
@@ -16,6 +18,8 @@ type SortKey = "date" | "views" | "top";
 export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedIn = false }: ClipsFilterBarProps) {
   const [playerFilter, setPlayerFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     let result =
@@ -30,7 +34,31 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
     });
 
     return result;
-  }, [clips, playerFilter, sortBy]);
+  }, [clips, playerFilter, sortBy, voteMap]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [playerFilter, sortBy]);
+
+  // Infinite scroll sentinel
+  const loadMore = useCallback(() => {
+    setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
+  }, [filtered.length]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   const uniquePlayers = Array.from(new Set(clips.map((c) => c.username)));
 
@@ -108,24 +136,43 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
 
       {/* Grid */}
       {filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((clip) => (
-            <AllstarClipCard
-              key={clip.id}
-              shareId={clip.shareId}
-              title={clip.title}
-              thumbnailUrl={clip.thumbnailUrl}
-              username={clip.username}
-              userAvatar={clip.userAvatar}
-              createdAt={clip.createdAt}
-              views={clip.views}
-              game={clip.game}
-              score={voteMap[clip.shareId]?.score ?? 0}
-              userVote={voteMap[clip.shareId]?.userVote ?? 0}
-              isLoggedIn={isLoggedIn}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {visible.map((clip) => (
+              <AllstarClipCard
+                key={clip.id}
+                shareId={clip.shareId}
+                title={clip.title}
+                thumbnailUrl={clip.thumbnailUrl}
+                username={clip.username}
+                userAvatar={clip.userAvatar}
+                createdAt={clip.createdAt}
+                views={clip.views}
+                game={clip.game}
+                score={voteMap[clip.shareId]?.score ?? 0}
+                userVote={voteMap[clip.shareId]?.userVote ?? 0}
+                isLoggedIn={isLoggedIn}
+              />
+            ))}
+          </div>
+
+          {/* Sentinel / loading indicator */}
+          {hasMore && (
+            <div ref={sentinelRef} className="flex justify-center items-center py-10 gap-2 text-gray-600 text-sm">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Loading more clips…
+            </div>
+          )}
+
+          {!hasMore && filtered.length > PAGE_SIZE && (
+            <p className="text-center text-xs text-gray-700 py-6">
+              All {filtered.length} clips loaded
+            </p>
+          )}
+        </>
       ) : (
         <div className="text-center py-24">
           <div className="w-20 h-20 bg-[#0d0d15] border border-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-5">
