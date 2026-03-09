@@ -6,6 +6,8 @@ import { getCS2Stats, getPlayerSummary } from "@/lib/steam";
 import { getAllstarClips, getAllstarProfile } from "@/lib/allstar";
 import PlayerCard from "@/components/PlayerCard";
 import AllstarClipCard from "@/components/AllstarClipCard";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 async function getPageData() {
   try {
@@ -50,8 +52,28 @@ async function getPageData() {
   }
 }
 
+async function getNextSession() {
+  try {
+    return await prisma.gamingSession.findFirst({
+      where: { scheduledAt: { gte: new Date() } },
+      orderBy: { scheduledAt: "asc" },
+      include: {
+        createdBy: { select: { username: true } },
+        rsvps: true,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default async function HomePage() {
-  const { players, clips } = await getPageData();
+  const [{ players, clips }, nextSession, authSession] = await Promise.all([
+    getPageData(),
+    getNextSession(),
+    getServerSession(authOptions),
+  ]);
+  const isLoggedIn = !!authSession?.user?.id;
   const hasPlayers = players.length > 0;
 
   return (
@@ -233,6 +255,41 @@ export default async function HomePage() {
                   );
                 })}
             </div>
+          </section>
+        )}
+
+        {/* Upcoming Session */}
+        {nextSession && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-black text-white">
+                Next <span className="text-orange-500">Session</span>
+              </h2>
+              <Link href="/sessions" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-orange-500/30 text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors">
+                All Sessions
+              </Link>
+            </div>
+            <Link
+              href="/sessions"
+              className="flex items-center gap-5 bg-[#0d0d15] border border-gray-800 rounded-xl p-5 hover:border-orange-500/30 transition-colors group"
+            >
+              <div className="shrink-0 bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-center min-w-[72px]">
+                <p className="text-[10px] text-orange-400 font-bold uppercase tracking-wider">Upcoming</p>
+                <p className="text-white font-black text-2xl leading-tight">{new Date(nextSession.scheduledAt).getDate()}</p>
+                <p className="text-[10px] text-gray-500">{new Date(nextSession.scheduledAt).toLocaleString("en-US", { month: "short" })}</p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-white text-lg group-hover:text-orange-400 transition-colors">{nextSession.title}</p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {new Date(nextSession.scheduledAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at {new Date(nextSession.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">Scheduled by {nextSession.createdBy.username}</p>
+              </div>
+              <div className="shrink-0 text-center">
+                <p className="text-2xl font-black text-green-400">{nextSession.rsvps.filter((r) => r.status === "in").length}</p>
+                <p className="text-xs text-gray-600">going</p>
+              </div>
+            </Link>
           </section>
         )}
 

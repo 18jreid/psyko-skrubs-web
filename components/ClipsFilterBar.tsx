@@ -7,11 +7,13 @@ import type { AllstarClipWithUser } from "@/lib/allstar";
 interface ClipsFilterBarProps {
   clips: AllstarClipWithUser[];
   players: { username: string; userAvatar: string }[];
+  voteMap?: Record<string, { score: number; userVote: number }>;
+  isLoggedIn?: boolean;
 }
 
-type SortKey = "date" | "views";
+type SortKey = "date" | "views" | "top";
 
-export default function ClipsFilterBar({ clips, players }: ClipsFilterBarProps) {
+export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedIn = false }: ClipsFilterBarProps) {
   const [playerFilter, setPlayerFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date");
 
@@ -22,9 +24,8 @@ export default function ClipsFilterBar({ clips, players }: ClipsFilterBarProps) 
         : clips.filter((c) => c.username === playerFilter);
 
     result = [...result].sort((a, b) => {
-      if (sortBy === "date") {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
+      if (sortBy === "date") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === "top") return (voteMap[b.shareId]?.score ?? 0) - (voteMap[a.shareId]?.score ?? 0);
       return b.views - a.views;
     });
 
@@ -92,6 +93,16 @@ export default function ClipsFilterBar({ clips, players }: ClipsFilterBarProps) 
           >
             Most Viewed
           </button>
+          <button
+            onClick={() => setSortBy("top")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              sortBy === "top"
+                ? "bg-orange-500 text-white"
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
+            }`}
+          >
+            Top Rated
+          </button>
         </div>
       </div>
 
@@ -109,6 +120,9 @@ export default function ClipsFilterBar({ clips, players }: ClipsFilterBarProps) 
               createdAt={clip.createdAt}
               views={clip.views}
               game={clip.game}
+              score={voteMap[clip.shareId]?.score ?? 0}
+              userVote={voteMap[clip.shareId]?.userVote ?? 0}
+              isLoggedIn={isLoggedIn}
             />
           ))}
         </div>

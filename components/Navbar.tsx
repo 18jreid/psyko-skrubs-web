@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -31,6 +32,9 @@ export default function Navbar() {
             <NavLink href="/rankings">Rankings</NavLink>
             <NavLink href="/team">Team</NavLink>
             <NavLink href="/steam">Steam</NavLink>
+            <NavLink href="/sessions">Sessions</NavLink>
+            <NavLink href="/compare">Compare</NavLink>
+            <NavLink href="/achievements">Achievements</NavLink>
             <NavLink href="/chat">Chat</NavLink>
             <NavLink href="/requests">Requests</NavLink>
           </div>
@@ -55,6 +59,7 @@ export default function Navbar() {
                     {session.user.name}
                   </span>
                 </div>
+                <NotificationBell />
                 <button
                   onClick={() => signOut()}
                   className="px-3 py-1.5 text-sm text-gray-400 hover:text-red-400 border border-gray-700 hover:border-red-400/50 rounded transition-colors"
@@ -103,6 +108,15 @@ export default function Navbar() {
             </MobileNavLink>
             <MobileNavLink href="/steam" onClick={() => setMenuOpen(false)}>
               Steam
+            </MobileNavLink>
+            <MobileNavLink href="/sessions" onClick={() => setMenuOpen(false)}>
+              Sessions
+            </MobileNavLink>
+            <MobileNavLink href="/compare" onClick={() => setMenuOpen(false)}>
+              Compare
+            </MobileNavLink>
+            <MobileNavLink href="/achievements" onClick={() => setMenuOpen(false)}>
+              Achievements
             </MobileNavLink>
             <MobileNavLink href="/chat" onClick={() => setMenuOpen(false)}>
               Chat
