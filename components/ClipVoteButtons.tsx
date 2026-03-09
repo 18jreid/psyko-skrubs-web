@@ -27,7 +27,7 @@ export default function ClipVoteButtons({ shareId, initialScore, initialUserVote
     setUserVote(newVote);
 
     try {
-      const res = await fetch(`/api/clips/${encodeURIComponent(shareId)}/vote`, {
+      const res = await fetch(`/api/clips/${shareId}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value }),
