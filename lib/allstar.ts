@@ -96,7 +96,11 @@ export async function getAllstarProfile(
   try {
     const res = await fetch(ALLSTAR_GRAPHQL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://allstar.gg",
+        Referer: "https://allstar.gg/",
+      },
       body: JSON.stringify({ query: PROFILE_QUERY, variables: { steamId } }),
       next: { revalidate: 300 },
     });
