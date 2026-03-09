@@ -3,40 +3,90 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import NotificationBell from "@/components/NotificationBell";
+
+const PRIMARY_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/clips", label: "Clips" },
+  { href: "/rankings", label: "Rankings" },
+];
+
+const MORE_LINKS = [
+  { href: "/team", label: "Team" },
+  { href: "/steam", label: "Steam" },
+  { href: "/sessions", label: "Sessions" },
+  { href: "/compare", label: "Compare" },
+  { href: "/achievements", label: "Achievements" },
+  { href: "/chat", label: "Chat" },
+  { href: "/requests", label: "Requests" },
+];
+
+const ALL_LINKS = [...PRIMARY_LINKS, ...MORE_LINKS];
 
 export default function Navbar() {
   const { data: session, status } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm border-b border-orange-500/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group shrink-0">
             <div className="w-8 h-8 bg-orange-500 rounded-sm flex items-center justify-center font-black text-black text-sm">
               PS
             </div>
             <span className="font-black text-xl tracking-wider text-white group-hover:text-orange-400 transition-colors">
-              PSYKO{" "}
-              <span className="text-orange-500">SKRUBS</span>
+              PSYKO <span className="text-orange-500">SKRUBS</span>
             </span>
           </Link>
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6">
-            <NavLink href="/">Home</NavLink>
-            <NavLink href="/clips">Clips</NavLink>
-            <NavLink href="/rankings">Rankings</NavLink>
-            <NavLink href="/team">Team</NavLink>
-            <NavLink href="/steam">Steam</NavLink>
-            <NavLink href="/sessions">Sessions</NavLink>
-            <NavLink href="/compare">Compare</NavLink>
-            <NavLink href="/achievements">Achievements</NavLink>
-            <NavLink href="/chat">Chat</NavLink>
-            <NavLink href="/requests">Requests</NavLink>
+            {PRIMARY_LINKS.map(({ href, label }) => (
+              <NavLink key={href} href={href}>{label}</NavLink>
+            ))}
+
+            {/* More dropdown */}
+            <div className="relative" ref={moreRef}>
+              <button
+                onClick={() => setMoreOpen((o) => !o)}
+                className="flex items-center gap-1 text-gray-400 hover:text-orange-400 text-sm font-medium uppercase tracking-wider transition-colors"
+              >
+                More
+                <svg className={`w-3.5 h-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {moreOpen && (
+                <div className="absolute top-full left-0 mt-2 w-44 bg-[#0d0d15] border border-gray-800 rounded-xl shadow-xl shadow-black/50 overflow-hidden z-50">
+                  {MORE_LINKS.map(({ href, label }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMoreOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-gray-400 hover:text-orange-400 hover:bg-gray-800/50 transition-colors font-medium"
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Auth */}
@@ -94,36 +144,16 @@ export default function Navbar() {
       {menuOpen && (
         <div className="md:hidden bg-[#0d0d15] border-t border-orange-500/20">
           <div className="px-4 py-3 space-y-3">
-            <MobileNavLink href="/" onClick={() => setMenuOpen(false)}>
-              Home
-            </MobileNavLink>
-            <MobileNavLink href="/clips" onClick={() => setMenuOpen(false)}>
-              Clips
-            </MobileNavLink>
-            <MobileNavLink href="/rankings" onClick={() => setMenuOpen(false)}>
-              Rankings
-            </MobileNavLink>
-            <MobileNavLink href="/team" onClick={() => setMenuOpen(false)}>
-              Team
-            </MobileNavLink>
-            <MobileNavLink href="/steam" onClick={() => setMenuOpen(false)}>
-              Steam
-            </MobileNavLink>
-            <MobileNavLink href="/sessions" onClick={() => setMenuOpen(false)}>
-              Sessions
-            </MobileNavLink>
-            <MobileNavLink href="/compare" onClick={() => setMenuOpen(false)}>
-              Compare
-            </MobileNavLink>
-            <MobileNavLink href="/achievements" onClick={() => setMenuOpen(false)}>
-              Achievements
-            </MobileNavLink>
-            <MobileNavLink href="/chat" onClick={() => setMenuOpen(false)}>
-              Chat
-            </MobileNavLink>
-            <MobileNavLink href="/requests" onClick={() => setMenuOpen(false)}>
-              Requests
-            </MobileNavLink>
+            {ALL_LINKS.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="block text-gray-300 hover:text-orange-400 font-medium uppercase tracking-wider transition-colors"
+              >
+                {label}
+              </Link>
+            ))}
             <div className="pt-2 border-t border-gray-800">
               {session ? (
                 <div className="space-y-2">
@@ -168,26 +198,6 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
     <Link
       href={href}
       className="text-gray-400 hover:text-orange-400 text-sm font-medium uppercase tracking-wider transition-colors"
-    >
-      {children}
-    </Link>
-  );
-}
-
-function MobileNavLink({
-  href,
-  children,
-  onClick,
-}: {
-  href: string;
-  children: React.ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="block text-gray-300 hover:text-orange-400 font-medium uppercase tracking-wider transition-colors"
     >
       {children}
     </Link>
