@@ -7,6 +7,18 @@ export interface SteamPlayerSummary {
   avatarfull: string;
   profileurl: string;
   communityvisibilitystate: number;
+  personastate: number;
+  gameextrainfo?: string;
+  gameid?: string;
+  lastlogoff?: number;
+}
+
+export interface RecentGame {
+  appid: number;
+  name: string;
+  playtime_2weeks: number;
+  playtime_forever: number;
+  img_icon_url: string;
 }
 
 export interface CS2Stats {
@@ -72,6 +84,22 @@ export async function getCS2Stats(steamId: string): Promise<CS2Stats | null> {
           : total_kills,
       hours_played: Math.round(total_time_played / 3600),
     };
+  } catch {
+    return null;
+  }
+}
+
+export async function getRecentlyPlayedGames(
+  steamId: string
+): Promise<RecentGame[] | null> {
+  try {
+    const url = `${STEAM_API_BASE}/IPlayerService/GetRecentlyPlayedGames/v1/?key=${STEAM_API_KEY}&steamid=${steamId}&count=10`;
+    const res = await fetch(url, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const games = data?.response?.games;
+    if (!games) return null;
+    return games as RecentGame[];
   } catch {
     return null;
   }

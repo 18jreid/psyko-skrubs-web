@@ -30,6 +30,7 @@ export default function Navbar() {
             <NavLink href="/clips">Clips</NavLink>
             <NavLink href="/rankings">Rankings</NavLink>
             <NavLink href="/team">Team</NavLink>
+            <NavLink href="/steam">Steam</NavLink>
             <NavLink href="/chat">Chat</NavLink>
             <NavLink href="/requests">Requests</NavLink>
           </div>
@@ -99,6 +100,9 @@ export default function Navbar() {
             </MobileNavLink>
             <MobileNavLink href="/team" onClick={() => setMenuOpen(false)}>
               Team
+            </MobileNavLink>
+            <MobileNavLink href="/steam" onClick={() => setMenuOpen(false)}>
+              Steam
             </MobileNavLink>
             <MobileNavLink href="/chat" onClick={() => setMenuOpen(false)}>
               Chat
