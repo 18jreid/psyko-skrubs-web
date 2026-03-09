@@ -1,5 +1,4 @@
 // Prisma config for SQLite (psyko-skrubs)
-import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({
