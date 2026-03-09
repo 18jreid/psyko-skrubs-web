@@ -2,9 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { getCS2Stats, getPlayerSummary } from "@/lib/steam";
+import { getAllstarProfile } from "@/lib/allstar";
+import type { AllstarClipWithUser } from "@/lib/allstar";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
+import ClipsSection from "./ClipsSection";
 
 function eloTier(elo: number): { label: string; color: string } {
   if (elo >= 30000) return { label: "Global Elite", color: "text-cyan-300" };
@@ -30,17 +34,51 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
 
   const user = await prisma.user.findUnique({
     where: { id },
-    include: {
-      clips: { orderBy: { createdAt: "desc" }, take: 6 },
-    },
   });
 
   if (!user) notFound();
 
-  const [stats, summary] = await Promise.all([
+  const [stats, summary, allstarProfile, session] = await Promise.all([
     getCS2Stats(user.steamId),
     getPlayerSummary(user.steamId),
+    getAllstarProfile(user.steamId),
+    getServerSession(authOptions),
   ]);
+
+  const isLoggedIn = !!session;
+
+  // Build AllstarClipWithUser array from the profile
+  const allstarClips: AllstarClipWithUser[] = (allstarProfile?.clips ?? []).map((clip) => ({
+    ...clip,
+    username: allstarProfile?.username ?? user.username,
+    userAvatar: allstarProfile?.avatarUrl ?? user.avatar,
+    steamId: user.steamId,
+  }));
+
+  // Fetch vote data for these clips
+  let voteMap: Record<string, { score: number; userVote: number }> = {};
+  if (allstarClips.length > 0) {
+    const shareIds = allstarClips.map((c) => c.shareId);
+    const votes = await prisma.clipVote.groupBy({
+      by: ["shareId"],
+      where: { shareId: { in: shareIds } },
+      _sum: { value: true },
+    });
+    const myVotes = isLoggedIn
+      ? await prisma.clipVote.findMany({
+          where: { userId: session.user.id, shareId: { in: shareIds } },
+          select: { shareId: true, value: true },
+        })
+      : [];
+    const myVoteMap: Record<string, number> = {};
+    for (const v of myVotes) myVoteMap[v.shareId] = v.value;
+    for (const v of votes) {
+      voteMap[v.shareId] = {
+        score: v._sum.value ?? 0,
+        userVote: myVoteMap[v.shareId] ?? 0,
+      };
+    }
+  }
 
   const displayName = summary?.personaname || user.username;
   const avatar = summary?.avatarfull || user.avatar;
@@ -122,34 +160,21 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           </section>
         )}
 
-        {/* Clips */}
-        {user.clips.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-white">Clips</h2>
-              <Link href="/clips" className="text-sm text-orange-400 hover:text-orange-300 transition-colors">
-                View all →
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {user.clips.map((clip) => (
-                <a
-                  key={clip.id}
-                  href={clip.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-[#0d0d15] border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors group"
-                >
-                  <p className="font-medium text-white group-hover:text-orange-400 transition-colors text-sm truncate">{clip.title}</p>
-                  {clip.description && (
-                    <p className="text-xs text-gray-500 mt-1 truncate">{clip.description}</p>
-                  )}
-                  <p className="text-xs text-gray-600 mt-2">{clip.platform}</p>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Allstar Clips */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-black text-white">Allstar Clips</h2>
+            <a
+              href={`https://allstar.gg/profile?user=${user.steamId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              Allstar profile →
+            </a>
+          </div>
+          <ClipsSection clips={allstarClips} voteMap={voteMap} isLoggedIn={isLoggedIn} />
+        </section>
       </div>
     </div>
   );
