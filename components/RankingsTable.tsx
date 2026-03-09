@@ -12,6 +12,15 @@ interface CS2Stats {
   total_time_played: number;
   kd_ratio: number;
   hours_played: number;
+  total_shots_fired: number;
+  total_shots_hit: number;
+  total_headshot_kills: number;
+  total_mvps: number;
+  total_rounds_played: number;
+  total_matches_played: number;
+  accuracy: number;
+  headshot_pct: number;
+  win_rate: number;
 }
 
 interface Player {
@@ -46,7 +55,7 @@ interface Props {
   seasons: Season[];
 }
 
-type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills";
+type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills" | "accuracy" | "headshot_pct" | "win_rate" | "total_mvps";
 
 function eloTier(elo: number): { label: string; color: string; bg: string } {
   if (elo >= 30000) return { label: "Global Elite", color: "text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/30" };
@@ -58,17 +67,17 @@ function eloTier(elo: number): { label: string; color: string; bg: string } {
   return { label: "Unranked", color: "text-gray-600", bg: "bg-gray-800/50 border-gray-700/30" };
 }
 
-function kdColor(kd: number): string {
+function kdColor(kd: number) {
   if (kd >= 1.5) return "text-green-400";
   if (kd >= 1.0) return "text-yellow-400";
   return "text-red-400";
 }
 
-function StatCell({ label, value }: { label: string; value: string }) {
+function pctBar(value: number, max: number, color: string) {
+  const width = Math.min(100, Math.round((value / max) * 100));
   return (
-    <div className="bg-[#0a0a0f] rounded-lg p-2">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className="font-bold text-white">{value}</p>
+    <div className="w-full bg-gray-800 rounded-full h-1 mt-1">
+      <div className={`${color} h-1 rounded-full`} style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -122,13 +131,11 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
   const [localSeasons, setLocalSeasons] = useState(seasons);
   const [archiving, setArchiving] = useState(false);
 
-  // ELO modal
   const [showEloModal, setShowEloModal] = useState(false);
   const [eloInput, setEloInput] = useState("");
   const [savingElo, setSavingElo] = useState(false);
   const [eloError, setEloError] = useState("");
 
-  // Season modal
   const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [seasonName, setSeasonName] = useState("");
   const [savingSeason, setSavingSeason] = useState(false);
@@ -137,6 +144,41 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
   const myPlayer = session ? players.find((p) => p.id === session.user?.id) : null;
   const activeSeason = localSeasons.find((s) => s.isActive) ?? null;
   const selectedSeason = selectedSeasonId ? localSeasons.find((s) => s.id === selectedSeasonId) : null;
+
+  const publicPlayers = players.filter((p) => !p.isPrivate && p.stats);
+
+  // Group summary stats
+  const totalKills = publicPlayers.reduce((s, p) => s + (p.stats?.total_kills ?? 0), 0);
+  const totalHours = publicPlayers.reduce((s, p) => s + (p.stats?.hours_played ?? 0), 0);
+  const totalMVPs = publicPlayers.reduce((s, p) => s + (p.stats?.total_mvps ?? 0), 0);
+  const avgKD = publicPlayers.length > 0
+    ? publicPlayers.reduce((s, p) => s + (p.stats?.kd_ratio ?? 0), 0) / publicPlayers.length
+    : 0;
+  const avgAcc = publicPlayers.length > 0
+    ? publicPlayers.reduce((s, p) => s + (p.stats?.accuracy ?? 0), 0) / publicPlayers.length
+    : 0;
+  const avgHS = publicPlayers.length > 0
+    ? publicPlayers.reduce((s, p) => s + (p.stats?.headshot_pct ?? 0), 0) / publicPlayers.length
+    : 0;
+
+  // Leaders per stat
+  const leader = (field: keyof CS2Stats) =>
+    publicPlayers.reduce<Player | null>((best, p) => {
+      const v = p.stats?.[field] as number ?? 0;
+      const bv = best?.stats?.[field] as number ?? 0;
+      return v > bv ? p : best;
+    }, null);
+
+  const leaders = {
+    kd: leader("kd_ratio"),
+    kills: leader("total_kills"),
+    wins: leader("total_wins"),
+    hours: leader("hours_played"),
+    accuracy: leader("accuracy"),
+    headshot: leader("headshot_pct"),
+    mvps: leader("total_mvps"),
+    winrate: leader("win_rate"),
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -205,15 +247,17 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
       return b.stats.kd_ratio - a.stats.kd_ratio;
     }
     if (!a.stats || !b.stats) return 0;
-    if (sortBy === "kd_ratio") return b.stats.kd_ratio - a.stats.kd_ratio;
-    if (sortBy === "total_wins") return b.stats.total_wins - a.stats.total_wins;
-    if (sortBy === "hours_played") return b.stats.hours_played - a.stats.hours_played;
-    if (sortBy === "total_kills") return b.stats.total_kills - a.stats.total_kills;
-    return 0;
+    const map: Record<string, keyof CS2Stats> = {
+      kd_ratio: "kd_ratio", total_wins: "total_wins", hours_played: "hours_played",
+      total_kills: "total_kills", accuracy: "accuracy", headshot_pct: "headshot_pct",
+      win_rate: "win_rate", total_mvps: "total_mvps",
+    };
+    const field = map[sortBy];
+    return (b.stats[field] as number) - (a.stats[field] as number);
   });
 
   const SortBtn = ({ label, field }: { label: string; field: SortKey }) => (
-    <button onClick={() => setSortBy(field)} className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${sortBy === field ? "bg-orange-500 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"}`}>
+    <button onClick={() => setSortBy(field)} className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${sortBy === field ? "bg-orange-500 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"}`}>
       {label}
     </button>
   );
@@ -274,15 +318,38 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
     <div>
       <SeasonNav seasons={localSeasons} selected={selectedSeasonId} onSelect={setSelectedSeasonId} onNew={() => setShowSeasonModal(true)} onArchive={handleArchive} archiving={archiving} hasSession={!!session} activeSeason={activeSeason} />
 
+      {/* Group summary cards */}
+      {publicPlayers.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 my-6">
+          {[
+            { label: "Combined Kills", value: totalKills.toLocaleString(), color: "text-red-400" },
+            { label: "Combined Hours", value: `${totalHours.toLocaleString()}h`, color: "text-blue-400" },
+            { label: "Combined MVPs", value: totalMVPs.toLocaleString(), color: "text-yellow-400" },
+            { label: "Avg K/D", value: avgKD.toFixed(2), color: kdColor(avgKD) },
+            { label: "Avg Accuracy", value: `${avgAcc.toFixed(1)}%`, color: "text-purple-400" },
+            { label: "Avg Headshot %", value: `${avgHS.toFixed(1)}%`, color: "text-orange-400" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-[#0d0d15] border border-gray-800 rounded-xl p-3 text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+              <p className={`font-black text-xl ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-500 mr-1">Sort:</span>
-          <SortBtn label="Premier ELO" field="cs2Elo" />
+          <SortBtn label="ELO" field="cs2Elo" />
           <SortBtn label="K/D" field="kd_ratio" />
           <SortBtn label="Wins" field="total_wins" />
-          <SortBtn label="Hours" field="hours_played" />
           <SortBtn label="Kills" field="total_kills" />
+          <SortBtn label="Hours" field="hours_played" />
+          <SortBtn label="Accuracy" field="accuracy" />
+          <SortBtn label="Headshot %" field="headshot_pct" />
+          <SortBtn label="Win Rate" field="win_rate" />
+          <SortBtn label="MVPs" field="total_mvps" />
         </div>
         <div className="flex items-center gap-2">
           {session && (
@@ -303,7 +370,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
       </div>
 
       {!session && (
-        <div className="flex items-start gap-3 p-3.5 bg-orange-500/5 border border-orange-500/20 rounded-xl text-sm text-orange-400/80 mb-6">
+        <div className="flex items-start gap-3 p-3.5 bg-orange-500/5 border border-orange-500/20 rounded-xl text-sm text-orange-400/80 mb-4">
           <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -312,85 +379,145 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
       )}
 
       {/* Desktop table */}
-      <div className="hidden md:block rounded-xl overflow-hidden border border-gray-800">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-[#0d0d15] border-b border-gray-800">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">Rank</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Player</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-orange-500/80 uppercase tracking-wider">Premier ELO</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">K/D</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Kills</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Wins</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Hours</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800/50">
-            {sorted.map((player, index) => {
-              const tier = player.cs2Elo != null ? eloTier(player.cs2Elo) : null;
-              return (
-                <tr key={player.id} className="bg-[#0a0a0f] hover:bg-[#0d0d18] transition-colors">
-                  <td className="px-4 py-4"><RankBadge rank={index + 1} /></td>
-                  <td className="px-4 py-4">
-                    <Link href={`/profile/${player.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                      <Image src={player.avatar} alt={player.username} width={40} height={40} className="rounded-full border-2 border-gray-700" />
-                      <div>
-                        <p className="font-medium text-white">{player.username}</p>
-                        {player.isPrivate && <p className="text-xs text-gray-600 mt-0.5">Private profile</p>}
-                      </div>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    {player.cs2Elo != null && tier ? (
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`font-black text-lg ${tier.color}`}>{player.cs2Elo.toLocaleString()}</span>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${tier.bg} ${tier.color}`}>{tier.label}</span>
-                      </div>
-                    ) : <span className="text-gray-600 text-sm">Not set</span>}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    {player.stats ? <span className={`font-black text-lg ${kdColor(player.stats.kd_ratio)}`}>{player.stats.kd_ratio.toFixed(2)}</span> : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    {player.stats ? <span className="text-gray-300 font-medium">{player.stats.total_kills.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    {player.stats ? <span className="text-gray-300 font-medium">{player.stats.total_wins.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    {player.stats ? <span className="text-gray-300 font-medium">{player.stats.hours_played.toLocaleString()}h</span> : <span className="text-gray-600">—</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="hidden lg:block rounded-xl overflow-hidden border border-gray-800">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead>
+              <tr className="bg-[#0d0d15] border-b border-gray-800">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">Rank</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Player</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-orange-500/80 uppercase tracking-wider">ELO</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">K/D</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Kills</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Deaths</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Wins</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Win %</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Accuracy</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">HS %</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">MVPs</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Hours</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/50">
+              {sorted.map((player, index) => {
+                const tier = player.cs2Elo != null ? eloTier(player.cs2Elo) : null;
+                const s = player.stats;
+                const isKdLeader = leaders.kd?.id === player.id;
+                const isKillsLeader = leaders.kills?.id === player.id;
+                const isWinsLeader = leaders.wins?.id === player.id;
+                const isAccLeader = leaders.accuracy?.id === player.id;
+                const isHSLeader = leaders.headshot?.id === player.id;
+                const isMVPLeader = leaders.mvps?.id === player.id;
+                const isWRLeader = leaders.winrate?.id === player.id;
+                const isHoursLeader = leaders.hours?.id === player.id;
+
+                return (
+                  <tr key={player.id} className="bg-[#0a0a0f] hover:bg-[#0d0d18] transition-colors">
+                    <td className="px-4 py-4"><RankBadge rank={index + 1} /></td>
+                    <td className="px-4 py-4">
+                      <Link href={`/profile/${player.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                        <Image src={player.avatar} alt={player.username} width={40} height={40} className="rounded-full border-2 border-gray-700" />
+                        <div>
+                          <p className="font-semibold text-white whitespace-nowrap">{player.username}</p>
+                          {tier && <span className={`text-[10px] font-bold uppercase tracking-wider ${tier.color}`}>{tier.label}</span>}
+                          {player.isPrivate && <p className="text-xs text-gray-600">Private</p>}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {player.cs2Elo != null && tier
+                        ? <span className={`font-black text-lg ${tier.color}`}>{player.cs2Elo.toLocaleString()}</span>
+                        : <span className="text-gray-600 text-sm">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className={`font-black text-base ${kdColor(s.kd_ratio)} ${isKdLeader ? "ring-1 ring-yellow-500/40 rounded px-1" : ""}`}>{s.kd_ratio.toFixed(2)}</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className={`text-sm font-medium ${isKillsLeader ? "text-orange-400 font-black" : "text-gray-300"}`}>{s.total_kills.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className="text-sm text-gray-400">{s.total_deaths.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className={`text-sm font-medium ${isWinsLeader ? "text-orange-400 font-black" : "text-gray-300"}`}>{s.total_wins.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s && s.win_rate > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className={`text-sm font-bold ${isWRLeader ? "text-green-400" : s.win_rate >= 50 ? "text-green-400" : "text-red-400"}`}>{s.win_rate.toFixed(1)}%</span>
+                          {pctBar(s.win_rate, 70, isWRLeader ? "bg-green-400" : "bg-gray-600")}
+                        </div>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s && s.accuracy > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className={`text-sm font-bold ${isAccLeader ? "text-purple-400" : "text-gray-300"}`}>{s.accuracy.toFixed(1)}%</span>
+                          {pctBar(s.accuracy, 30, isAccLeader ? "bg-purple-400" : "bg-gray-600")}
+                        </div>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s && s.headshot_pct > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className={`text-sm font-bold ${isHSLeader ? "text-orange-400" : "text-gray-300"}`}>{s.headshot_pct.toFixed(1)}%</span>
+                          {pctBar(s.headshot_pct, 60, isHSLeader ? "bg-orange-400" : "bg-gray-600")}
+                        </div>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className={`text-sm font-medium ${isMVPLeader ? "text-yellow-400 font-black" : "text-gray-300"}`}>{s.total_mvps.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {s ? <span className={`text-sm font-medium ${isHoursLeader ? "text-blue-400 font-black" : "text-gray-300"}`}>{s.hours_played.toLocaleString()}h</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
+      {/* Tablet / Mobile cards */}
+      <div className="lg:hidden space-y-3">
         {sorted.map((player, index) => {
           const tier = player.cs2Elo != null ? eloTier(player.cs2Elo) : null;
+          const s = player.stats;
           return (
             <Link key={player.id} href={`/profile/${player.id}`} className="bg-[#0d0d15] border border-gray-800 rounded-xl overflow-hidden block hover:border-gray-700 transition-colors">
-              <div className="flex items-center gap-3 p-4">
+              <div className="flex items-center gap-3 p-4 border-b border-gray-800/50">
                 <RankBadge rank={index + 1} />
                 <Image src={player.avatar} alt={player.username} width={44} height={44} className="rounded-full border-2 border-gray-700" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-white truncate">{player.username}</p>
                   {tier ? <span className={`text-[10px] font-bold uppercase tracking-wider ${tier.color}`}>{tier.label}</span> : player.isPrivate ? <p className="text-xs text-gray-600">Private</p> : null}
                 </div>
-                {player.cs2Elo != null && tier ? (
-                  <span className={`font-black text-xl ${tier.color}`}>{player.cs2Elo.toLocaleString()}</span>
-                ) : player.stats ? (
-                  <span className={`font-black text-xl ${kdColor(player.stats.kd_ratio)}`}>{player.stats.kd_ratio.toFixed(2)}</span>
-                ) : null}
+                {player.cs2Elo != null && tier
+                  ? <span className={`font-black text-xl shrink-0 ${tier.color}`}>{player.cs2Elo.toLocaleString()}</span>
+                  : s ? <span className={`font-black text-xl shrink-0 ${kdColor(s.kd_ratio)}`}>{s.kd_ratio.toFixed(2)} K/D</span>
+                  : null}
               </div>
-              <div className="px-4 pb-4 grid grid-cols-3 gap-2 text-center">
-                <StatCell label="K/D" value={player.stats ? player.stats.kd_ratio.toFixed(2) : "—"} />
-                <StatCell label="Wins" value={player.stats?.total_wins.toLocaleString() ?? "—"} />
-                <StatCell label="Hours" value={player.stats ? `${player.stats.hours_played}h` : "—"} />
-              </div>
+              {s && (
+                <div className="px-4 py-3 grid grid-cols-3 gap-2 text-center">
+                  {[
+                    { label: "K/D", value: s.kd_ratio.toFixed(2), color: kdColor(s.kd_ratio) },
+                    { label: "Kills", value: s.total_kills.toLocaleString(), color: "text-white" },
+                    { label: "Wins", value: s.total_wins.toLocaleString(), color: "text-white" },
+                    { label: "Win %", value: `${s.win_rate.toFixed(1)}%`, color: s.win_rate >= 50 ? "text-green-400" : "text-red-400" },
+                    { label: "Accuracy", value: `${s.accuracy.toFixed(1)}%`, color: "text-purple-400" },
+                    { label: "HS %", value: `${s.headshot_pct.toFixed(1)}%`, color: "text-orange-400" },
+                    { label: "MVPs", value: s.total_mvps.toLocaleString(), color: "text-yellow-400" },
+                    { label: "Deaths", value: s.total_deaths.toLocaleString(), color: "text-gray-400" },
+                    { label: "Hours", value: `${s.hours_played}h`, color: "text-blue-400" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-[#0a0a0f] rounded-lg p-2">
+                      <p className="text-[10px] text-gray-500 mb-0.5">{label}</p>
+                      <p className={`text-sm font-bold ${color}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Link>
           );
         })}
