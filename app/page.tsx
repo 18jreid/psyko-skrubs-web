@@ -16,6 +16,7 @@ async function getPageData() {
         username: true,
         avatar: true,
         profileUrl: true,
+        cs2Elo: true,
       },
     });
 
@@ -36,6 +37,7 @@ async function getPageData() {
             stats,
             isPrivate: !stats,
             allstarClipCount: allstarProfile?.clipCount ?? 0,
+            cs2Elo: user.cs2Elo,
           };
         })
       ),
@@ -150,6 +152,82 @@ export default async function HomePage() {
             </div>
           )}
         </section>
+
+        {/* Leaderboard */}
+        {hasPlayers && (
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-black text-white">
+                  Premier <span className="text-orange-500">Leaderboard</span>
+                </h2>
+                <p className="text-gray-500 text-sm mt-1">Ranked by ELO — K/D as tiebreaker</p>
+              </div>
+              <Link
+                href="/rankings"
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-orange-500/30 text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Full Rankings
+              </Link>
+            </div>
+            <div className="bg-[#0d0d15] border border-gray-800 rounded-xl overflow-hidden">
+              {[...players]
+                .sort((a, b) => {
+                  if (a.isPrivate && !b.isPrivate) return 1;
+                  if (!a.isPrivate && b.isPrivate) return -1;
+                  const eloDiff = (b.cs2Elo ?? -1) - (a.cs2Elo ?? -1);
+                  if (eloDiff !== 0) return eloDiff;
+                  if (!a.stats || !b.stats) return 0;
+                  return b.stats.kd_ratio - a.stats.kd_ratio;
+                })
+                .map((player, i) => {
+                  const elo = player.cs2Elo;
+                  const tier =
+                    elo == null ? null
+                    : elo >= 30000 ? { label: "Global Elite", color: "text-cyan-300" }
+                    : elo >= 25000 ? { label: "Supreme", color: "text-red-400" }
+                    : elo >= 20000 ? { label: "Legendary Eagle", color: "text-purple-400" }
+                    : elo >= 15000 ? { label: "Master Guardian", color: "text-blue-400" }
+                    : elo >= 10000 ? { label: "Gold Nova", color: "text-yellow-400" }
+                    : elo >= 5000  ? { label: "Silver", color: "text-gray-400" }
+                    : { label: "Unranked", color: "text-gray-600" };
+                  const rank = i + 1;
+                  return (
+                    <Link
+                      key={player.id}
+                      href={`/profile/${player.id}`}
+                      className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/60 last:border-0 hover:bg-[#0f0f1a] transition-colors"
+                    >
+                      {/* Rank */}
+                      <span className={`w-8 text-center font-black text-sm shrink-0 ${rank === 1 ? "text-yellow-400" : rank === 2 ? "text-gray-300" : rank === 3 ? "text-orange-600" : "text-gray-600"}`}>
+                        #{rank}
+                      </span>
+                      {/* Avatar */}
+                      <img src={player.avatar} alt={player.username} className="w-9 h-9 rounded-full border-2 border-gray-700 shrink-0" />
+                      {/* Name + tier */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-white text-sm truncate">{player.username}</p>
+                        {tier && <p className={`text-xs ${tier.color}`}>{tier.label}</p>}
+                      </div>
+                      {/* ELO */}
+                      <div className="text-right shrink-0">
+                        {elo != null && tier ? (
+                          <p className={`font-black text-base ${tier.color}`}>{elo.toLocaleString()}</p>
+                        ) : (
+                          <p className="text-xs text-gray-600">No ELO</p>
+                        )}
+                        {player.stats && (
+                          <p className={`text-xs font-bold ${player.stats.kd_ratio >= 1.5 ? "text-green-400" : player.stats.kd_ratio >= 1.0 ? "text-yellow-400" : "text-red-400"}`}>
+                            {player.stats.kd_ratio.toFixed(2)} K/D
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+          </section>
+        )}
 
         {/* Latest Clips */}
         <section>
