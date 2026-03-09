@@ -71,7 +71,7 @@ const migrations = [
   },
   {
     name: "20260309004255_add_leetify_token",
-    sql: `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "leetifyToken" TEXT;`,
+    sql: `ALTER TABLE "User" ADD COLUMN "leetifyToken" TEXT;`,
   },
 ];
 
