@@ -99,10 +99,16 @@ export default async function HomePage() {
           </div>
 
           {hasPlayers ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {players.map((player) => (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+              {[...players]
+                .sort((a, b) => {
+                  if (a.isPrivate && !b.isPrivate) return 1;
+                  if (!a.isPrivate && b.isPrivate) return -1;
+                  return (b.stats?.kd_ratio ?? -1) - (a.stats?.kd_ratio ?? -1);
+                })
+                .map((player) => (
+                <div key={player.id} className="shrink-0 w-52">
                 <PlayerCard
-                  key={player.id}
                   username={player.username}
                   avatar={player.avatar}
                   profileUrl={player.profileUrl}
@@ -113,6 +119,7 @@ export default async function HomePage() {
                   allstarClipCount={player.allstarClipCount}
                   isPrivate={player.isPrivate}
                 />
+                </div>
               ))}
             </div>
           ) : (
