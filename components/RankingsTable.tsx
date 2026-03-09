@@ -17,10 +17,8 @@ interface CS2Stats {
   total_headshot_kills: number;
   total_mvps: number;
   total_rounds_played: number;
-  total_matches_played: number;
   accuracy: number;
   headshot_pct: number;
-  win_rate: number;
 }
 
 interface Player {
@@ -55,7 +53,7 @@ interface Props {
   seasons: Season[];
 }
 
-type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills" | "accuracy" | "headshot_pct" | "win_rate" | "total_mvps";
+type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills" | "accuracy" | "headshot_pct" | "total_mvps";
 
 function eloTier(elo: number): { label: string; color: string; bg: string } {
   if (elo >= 30000) return { label: "Global Elite", color: "text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/30" };
@@ -177,7 +175,6 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
     accuracy: leader("accuracy"),
     headshot: leader("headshot_pct"),
     mvps: leader("total_mvps"),
-    winrate: leader("win_rate"),
   };
 
   const handleRefresh = async () => {
@@ -250,7 +247,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
     const map: Record<string, keyof CS2Stats> = {
       kd_ratio: "kd_ratio", total_wins: "total_wins", hours_played: "hours_played",
       total_kills: "total_kills", accuracy: "accuracy", headshot_pct: "headshot_pct",
-      win_rate: "win_rate", total_mvps: "total_mvps",
+      total_mvps: "total_mvps",
     };
     const field = map[sortBy];
     return (b.stats[field] as number) - (a.stats[field] as number);
@@ -348,7 +345,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
           <SortBtn label="Hours" field="hours_played" />
           <SortBtn label="Accuracy" field="accuracy" />
           <SortBtn label="Headshot %" field="headshot_pct" />
-          <SortBtn label="Win Rate" field="win_rate" />
+
           <SortBtn label="MVPs" field="total_mvps" />
         </div>
         <div className="flex items-center gap-2">
@@ -391,7 +388,6 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Kills</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Deaths</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Wins</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Win %</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Accuracy</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">HS %</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">MVPs</th>
@@ -408,7 +404,6 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                 const isAccLeader = leaders.accuracy?.id === player.id;
                 const isHSLeader = leaders.headshot?.id === player.id;
                 const isMVPLeader = leaders.mvps?.id === player.id;
-                const isWRLeader = leaders.winrate?.id === player.id;
                 const isHoursLeader = leaders.hours?.id === player.id;
 
                 return (
@@ -440,14 +435,6 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                     </td>
                     <td className="px-4 py-4 text-right">
                       {s ? <span className={`text-sm font-medium ${isWinsLeader ? "text-orange-400 font-black" : "text-gray-300"}`}>{s.total_wins.toLocaleString()}</span> : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      {s && s.win_rate > 0 ? (
-                        <div className="flex flex-col items-end">
-                          <span className={`text-sm font-bold ${isWRLeader ? "text-green-400" : s.win_rate >= 50 ? "text-green-400" : "text-red-400"}`}>{s.win_rate.toFixed(1)}%</span>
-                          {pctBar(s.win_rate, 70, isWRLeader ? "bg-green-400" : "bg-gray-600")}
-                        </div>
-                      ) : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="px-4 py-4 text-right">
                       {s && s.accuracy > 0 ? (
@@ -504,7 +491,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                     { label: "K/D", value: s.kd_ratio.toFixed(2), color: kdColor(s.kd_ratio) },
                     { label: "Kills", value: s.total_kills.toLocaleString(), color: "text-white" },
                     { label: "Wins", value: s.total_wins.toLocaleString(), color: "text-white" },
-                    { label: "Win %", value: `${s.win_rate.toFixed(1)}%`, color: s.win_rate >= 50 ? "text-green-400" : "text-red-400" },
+
                     { label: "Accuracy", value: `${s.accuracy.toFixed(1)}%`, color: "text-purple-400" },
                     { label: "HS %", value: `${s.headshot_pct.toFixed(1)}%`, color: "text-orange-400" },
                     { label: "MVPs", value: s.total_mvps.toLocaleString(), color: "text-yellow-400" },

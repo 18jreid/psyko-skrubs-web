@@ -33,10 +33,8 @@ export interface CS2Stats {
   total_headshot_kills: number;
   total_mvps: number;
   total_rounds_played: number;
-  total_matches_played: number;
   accuracy: number;       // shots_hit / shots_fired %
   headshot_pct: number;   // headshot_kills / kills %
-  win_rate: number;       // wins / matches_played %
 }
 
 export interface SteamGame {
@@ -86,7 +84,6 @@ export async function getCS2Stats(steamId: string): Promise<CS2Stats | null> {
     const total_headshot_kills = statsMap["total_kills_headshot"] ?? 0;
     const total_mvps = statsMap["total_mvps"] ?? 0;
     const total_rounds_played = statsMap["total_rounds_played"] ?? 0;
-    const total_matches_played = statsMap["total_matches_played"] ?? 0;
 
     return {
       total_kills,
@@ -98,7 +95,6 @@ export async function getCS2Stats(steamId: string): Promise<CS2Stats | null> {
       total_headshot_kills,
       total_mvps,
       total_rounds_played,
-      total_matches_played,
       kd_ratio: total_deaths > 0
         ? Math.round((total_kills / total_deaths) * 100) / 100
         : total_kills,
@@ -108,9 +104,6 @@ export async function getCS2Stats(steamId: string): Promise<CS2Stats | null> {
         : 0,
       headshot_pct: total_kills > 0
         ? Math.round((total_headshot_kills / total_kills) * 1000) / 10
-        : 0,
-      win_rate: total_matches_played > 0
-        ? Math.round((total_wins / total_matches_played) * 1000) / 10
         : 0,
     };
   } catch {
