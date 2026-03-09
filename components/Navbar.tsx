@@ -29,6 +29,7 @@ export default function Navbar() {
             <NavLink href="/">Home</NavLink>
             <NavLink href="/clips">Clips</NavLink>
             <NavLink href="/rankings">Rankings</NavLink>
+            <NavLink href="/team">Team</NavLink>
             <NavLink href="/chat">Chat</NavLink>
             <NavLink href="/requests">Requests</NavLink>
           </div>
@@ -95,6 +96,9 @@ export default function Navbar() {
             </MobileNavLink>
             <MobileNavLink href="/rankings" onClick={() => setMenuOpen(false)}>
               Rankings
+            </MobileNavLink>
+            <MobileNavLink href="/team" onClick={() => setMenuOpen(false)}>
+              Team
             </MobileNavLink>
             <MobileNavLink href="/chat" onClick={() => setMenuOpen(false)}>
               Chat
