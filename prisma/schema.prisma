@@ -13,8 +13,9 @@ model User {
   avatar        String
   profileUrl    String
   leetifyToken  String?
-  cs2Elo        Int?
-  createdAt     DateTime      @default(now())
+  cs2Elo            Int?
+  minecraftUsername String?
+  createdAt         DateTime      @default(now())
   clips           Clip[]
   clipLikes       ClipLike[]
   gameVotes       GameVote[]
