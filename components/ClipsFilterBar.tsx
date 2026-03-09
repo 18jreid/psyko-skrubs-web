@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AllstarClipCard from "@/components/AllstarClipCard";
 import type { AllstarClipWithUser } from "@/lib/allstar";
 
@@ -19,7 +19,6 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
   const [playerFilter, setPlayerFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     let result =
@@ -41,21 +40,23 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
     setVisibleCount(PAGE_SIZE);
   }, [playerFilter, sortBy]);
 
-  // Infinite scroll — re-attach observer after every load so it fires again
-  // if the sentinel is still in view after the new batch renders
+  // Infinite scroll via scroll listener — more reliable than IntersectionObserver
+  // when sentinel ref may be null during filter transitions.
+  // Re-runs after each batch (visibleCount) and when filtered set changes.
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    if (visibleCount >= filtered.length) return;
+
+    function check() {
+      const scrolledTo = window.scrollY + window.innerHeight;
+      const pageHeight = document.documentElement.scrollHeight;
+      if (pageHeight - scrolledTo < 400) {
+        setVisibleCount((n) => Math.min(n + PAGE_SIZE, filtered.length));
+      }
+    }
+
+    window.addEventListener("scroll", check, { passive: true });
+    check(); // load immediately if already near bottom (short page / wide screen)
+    return () => window.removeEventListener("scroll", check);
   }, [visibleCount, filtered.length]);
 
   const visible = filtered.slice(0, visibleCount);
@@ -157,14 +158,14 @@ export default function ClipsFilterBar({ clips, players, voteMap = {}, isLoggedI
             ))}
           </div>
 
-          {/* Sentinel / loading indicator */}
+          {/* Loading indicator */}
           {hasMore && (
-            <div ref={sentinelRef} className="flex justify-center items-center py-10 gap-2 text-gray-600 text-sm">
+            <div className="flex justify-center items-center py-10 gap-2 text-gray-600 text-sm">
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              Loading more clips…
+              Loading more…
             </div>
           )}
 
