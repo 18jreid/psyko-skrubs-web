@@ -13,6 +13,7 @@ async function getRankings() {
         username: true,
         avatar: true,
         profileUrl: true,
+        cs2Elo: true,
       },
     });
 
@@ -33,9 +34,13 @@ async function getRankings() {
 
     const rankings = await Promise.all(rankingsPromises);
 
+    // Sort: players with ELO first (desc), then by K/D, then private last
     rankings.sort((a, b) => {
       if (a.isPrivate && !b.isPrivate) return 1;
       if (!a.isPrivate && b.isPrivate) return -1;
+      const aElo = a.cs2Elo ?? -1;
+      const bElo = b.cs2Elo ?? -1;
+      if (bElo !== aElo) return bElo - aElo;
       if (!a.stats || !b.stats) return 0;
       return b.stats.kd_ratio - a.stats.kd_ratio;
     });
@@ -56,40 +61,16 @@ export default async function RankingsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <h1 className="text-3xl font-black text-white">
             CS2{" "}
-            <span className="text-orange-500">Rankings</span>
+            <span className="text-orange-500">Leaderboard</span>
           </h1>
           <p className="text-gray-500 mt-1">
-            Live stats fetched from Steam API — sorted by K/D ratio
+            Ranked by Premier ELO — set yours to climb the board
           </p>
         </div>
       </div>
 
-      {/* Info banner */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="flex items-start gap-3 p-3.5 bg-blue-500/5 border border-blue-500/20 rounded-xl text-sm text-blue-400/80 mb-6">
-          <svg
-            className="w-4 h-4 mt-0.5 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>
-            Stats are pulled from the Steam Web API. Players with private
-            profiles or hidden game details will show as private. Sign in with
-            Steam to appear on the leaderboard.
-          </span>
-        </div>
-      </div>
-
       {/* Table */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-12">
         <RankingsTable initialPlayers={players} />
       </div>
     </div>
