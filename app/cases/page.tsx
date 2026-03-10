@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { RARITY_LABEL, CASE_COST, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
+import { RARITY_LABEL, CASE_ITEMS, CASE_COST, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
 
 const ITEM_W = 132;   // px per roulette card (120px + 12px gap)
 const STRIP_LEN = 80;
