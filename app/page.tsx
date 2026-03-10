@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCS2Stats, getPlayerSummary } from "@/lib/steam";
 import { getAllstarClips, getAllstarProfile } from "@/lib/allstar";
+import { getAllInventoryValues } from "@/lib/inventory";
 import PlayerCard from "@/components/PlayerCard";
 import AllstarClipCard from "@/components/AllstarClipCard";
 import { getServerSession } from "next-auth";
@@ -24,7 +25,7 @@ async function getPageData() {
 
     const steamIds = users.map((u) => u.steamId);
 
-    const [playerData, allstarClips] = await Promise.all([
+    const [playerData, allstarClips, inventoryValues] = await Promise.all([
       Promise.all(
         users.map(async (user) => {
           const [stats, summary, allstarProfile] = await Promise.all([
@@ -44,9 +45,35 @@ async function getPageData() {
         })
       ),
       getAllstarClips(steamIds),
+      getAllInventoryValues(steamIds).catch(() => ({} as Record<string, null>)),
     ]);
 
-    return { players: playerData, clips: allstarClips.slice(0, 12) };
+    const playersWithInventory = playerData.map((player) => ({
+      ...player,
+      inventoryValue: inventoryValues[player.steamId]?.value ?? null,
+    }));
+
+    // Top clips from the last 2 weeks, prioritized by kill count then views
+    const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const killScore = (title: string): number => {
+      const t = title.toLowerCase();
+      if (t.includes("ace")) return 5;
+      if (t.includes("5k")) return 5;
+      if (t.includes("4k") || t.includes("rampage")) return 4;
+      if (t.includes("3k") || t.includes("triple")) return 3;
+      if (t.includes("2k")) return 2;
+      return 1;
+    };
+    const topRecentClips = allstarClips
+      .filter((c) => new Date(c.createdAt).getTime() >= twoWeeksAgo)
+      .sort((a, b) => {
+        const killDiff = killScore(b.title) - killScore(a.title);
+        if (killDiff !== 0) return killDiff;
+        return b.views - a.views;
+      })
+      .slice(0, 12);
+
+    return { players: playersWithInventory, clips: topRecentClips };
   } catch {
     return { players: [], clips: [] };
   }
@@ -140,6 +167,7 @@ export default async function HomePage() {
                   hoursPlayed={player.stats?.hours_played ?? null}
                   allstarClipCount={player.allstarClipCount}
                   isPrivate={player.isPrivate}
+                  inventoryValue={player.inventoryValue}
                 />
                 </div>
               ))}
@@ -298,11 +326,11 @@ export default async function HomePage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-black text-white">
-                Latest{" "}
+                Top{" "}
                 <span className="text-orange-500">Clips</span>
               </h2>
               <p className="text-gray-500 text-sm mt-1">
-                Auto-pulled from Allstar.gg for all members
+                Best plays from the last 2 weeks — aces first
               </p>
             </div>
             {clips.length > 0 && (

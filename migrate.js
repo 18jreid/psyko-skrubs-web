@@ -179,6 +179,50 @@ const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS "ClipVote_userId_shareId_key" ON "ClipVote"("userId", "shareId");
     `,
   },
+  {
+    name: "20260309_add_cases",
+    sql: `
+      ALTER TABLE "User" ADD COLUMN "balance" INTEGER NOT NULL DEFAULT 1000;
+
+      CREATE TABLE IF NOT EXISTS "CaseItem" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "rarity" TEXT NOT NULL,
+        "color" TEXT NOT NULL,
+        "emoji" TEXT NOT NULL,
+        "sellValue" INTEGER NOT NULL,
+        "weight" INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS "UserItem" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "itemId" TEXT NOT NULL,
+        "sold" INTEGER NOT NULL DEFAULT 0,
+        "obtainedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "UserItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "UserItem_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "CaseItem" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+
+      INSERT OR IGNORE INTO "CaseItem" ("id","name","rarity","color","emoji","sellValue","weight") VALUES
+        ('ms_1','AK-47 | Redline (Battle-Scarred)','mil-spec','#4b69ff','🔵',50,1600),
+        ('ms_2','M4A4 | Howl Wannabe (Field-Tested)','mil-spec','#4b69ff','🔵',50,1600),
+        ('ms_3','AWP | Dragon Snore (Worn)','mil-spec','#4b69ff','🔵',50,1600),
+        ('ms_4','Glock-18 | Fade Attempt (Battle-Scarred)','mil-spec','#4b69ff','🔵',50,1600),
+        ('ms_5','MP5-SD | Lab Rats (Minimal Wear)','mil-spec','#4b69ff','🔵',50,1590),
+        ('r_1','AK-47 | Vulcan (Field-Tested)','restricted','#8847ff','🟣',150,400),
+        ('r_2','M4A1-S | Cyrex (Minimal Wear)','restricted','#8847ff','🟣',150,400),
+        ('r_3','AWP | Asiimov (Battle-Scarred)','restricted','#8847ff','🟣',150,400),
+        ('r_4','USP-S | Orion (Factory New)','restricted','#8847ff','🟣',150,390),
+        ('c_1','AK-47 | Fire Serpent (Field-Tested)','classified','#d32ce6','🩷',400,110),
+        ('c_2','StatTrak™ M4A4 | Howl (Battle-Scarred)','classified','#d32ce6','🩷',400,110),
+        ('c_3','Karambit | Doppler (Minimal Wear)','classified','#d32ce6','🩷',400,100),
+        ('cv_1','AWP | Dragon Lore (Factory New)','covert','#eb4b4b','🔴',1200,34),
+        ('cv_2','StatTrak™ Butterfly Knife | Fade','covert','#eb4b4b','🔴',1200,30),
+        ('rs_1','★ Psyko Knife | Crimson Web','rare-special','#ffd700','⭐',5000,14),
+        ('rs_2','★ StatTrak™ Karambit | Case Hardened','rare-special','#ffd700','⭐',5000,12);
+    `,
+  },
 ];
 
 for (const migration of migrations) {

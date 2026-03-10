@@ -10,6 +10,7 @@ export interface PlayerCardProps {
   hoursPlayed: number | null;
   allstarClipCount: number;
   isPrivate: boolean;
+  inventoryValue: number | null;
 }
 
 function kdColor(kd: number): string {
@@ -27,6 +28,7 @@ export default function PlayerCard({
   hoursPlayed,
   allstarClipCount,
   isPrivate,
+  inventoryValue,
 }: PlayerCardProps) {
   return (
     <div className="relative bg-[#0d0d15] border border-gray-800 rounded-xl overflow-hidden hover:border-orange-500/30 transition-all duration-300 group">
@@ -130,6 +132,20 @@ export default function PlayerCard({
             <p className="font-black text-lg text-purple-400">
               {allstarClipCount}
             </p>
+          </div>
+
+          {/* Inventory Value */}
+          <div className="col-span-2 bg-[#0a0a0f] rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
+              Inventory
+            </p>
+            {inventoryValue !== null ? (
+              <p className="font-black text-lg text-green-400">
+                ${inventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            ) : (
+              <p className="font-black text-lg text-gray-700">&mdash;</p>
+            )}
           </div>
         </div>
       </div>
