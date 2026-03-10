@@ -223,6 +223,27 @@ const migrations = [
         ('rs_2','★ StatTrak™ Karambit | Case Hardened','rare-special','#ffd700','⭐',5000,12);
     `,
   },
+  {
+    name: "20260309_add_market",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "MarketListing" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "sellerId" TEXT NOT NULL,
+        "userItemId" TEXT NOT NULL,
+        "itemId" TEXT NOT NULL,
+        "price" INTEGER NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'active',
+        "buyerId" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "soldAt" DATETIME,
+        CONSTRAINT "MarketListing_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User" ("id"),
+        CONSTRAINT "MarketListing_userItemId_fkey" FOREIGN KEY ("userItemId") REFERENCES "UserItem" ("id"),
+        CONSTRAINT "MarketListing_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "CaseItem" ("id"),
+        CONSTRAINT "MarketListing_buyerId_fkey" FOREIGN KEY ("buyerId") REFERENCES "User" ("id")
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "MarketListing_userItemId_key" ON "MarketListing"("userItemId");
+    `,
+  },
 ];
 
 for (const migration of migrations) {
