@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCS2Stats, getPlayerSummary } from "@/lib/steam";
 import { getAllstarClips, getAllstarProfile } from "@/lib/allstar";
+import { getAllInventoryValues } from "@/lib/inventory";
 import PlayerCard from "@/components/PlayerCard";
 import AllstarClipCard from "@/components/AllstarClipCard";
 import { getServerSession } from "next-auth";
@@ -24,7 +25,7 @@ async function getPageData() {
 
     const steamIds = users.map((u) => u.steamId);
 
-    const [playerData, allstarClips] = await Promise.all([
+    const [playerData, allstarClips, inventoryValues] = await Promise.all([
       Promise.all(
         users.map(async (user) => {
           const [stats, summary, allstarProfile] = await Promise.all([
@@ -44,9 +45,15 @@ async function getPageData() {
         })
       ),
       getAllstarClips(steamIds),
+      getAllInventoryValues(steamIds).catch(() => ({} as Record<string, null>)),
     ]);
 
-    return { players: playerData, clips: allstarClips.slice(0, 12) };
+    const playersWithInventory = playerData.map((player) => ({
+      ...player,
+      inventoryValue: inventoryValues[player.steamId]?.value ?? null,
+    }));
+
+    return { players: playersWithInventory, clips: allstarClips.slice(0, 12) };
   } catch {
     return { players: [], clips: [] };
   }
@@ -140,6 +147,7 @@ export default async function HomePage() {
                   hoursPlayed={player.stats?.hours_played ?? null}
                   allstarClipCount={player.allstarClipCount}
                   isPrivate={player.isPrivate}
+                  inventoryValue={player.inventoryValue}
                 />
                 </div>
               ))}

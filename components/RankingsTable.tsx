@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 interface CS2Stats {
@@ -30,6 +30,7 @@ interface Player {
   cs2Elo: number | null;
   stats: CS2Stats | null;
   isPrivate: boolean;
+  inventoryValue?: number | null;
 }
 
 interface SeasonSnapshot {
@@ -53,7 +54,7 @@ interface Props {
   seasons: Season[];
 }
 
-type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills" | "accuracy" | "headshot_pct" | "total_mvps";
+type SortKey = "cs2Elo" | "kd_ratio" | "total_wins" | "hours_played" | "total_kills" | "accuracy" | "headshot_pct" | "total_mvps" | "inventoryValue";
 
 function eloTier(elo: number): { label: string; color: string; bg: string } {
   if (elo >= 30000) return { label: "Global Elite", color: "text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/30" };
@@ -139,6 +140,21 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
   const [savingSeason, setSavingSeason] = useState(false);
   const [seasonError, setSeasonError] = useState("");
 
+  useEffect(() => {
+    fetch("/api/inventory")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Record<string, { value: number; itemCount: number }> | null) => {
+        if (!data) return;
+        setPlayers((prev) =>
+          prev.map((p) => ({
+            ...p,
+            inventoryValue: data[p.steamId]?.value ?? null,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   const myPlayer = session ? players.find((p) => p.id === session.user?.id) : null;
   const activeSeason = localSeasons.find((s) => s.isActive) ?? null;
   const selectedSeason = selectedSeasonId ? localSeasons.find((s) => s.id === selectedSeasonId) : null;
@@ -180,8 +196,21 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch("/api/rankings", { cache: "no-store" });
-      if (res.ok) setPlayers(await res.json());
+      const [rankingsRes, inventoryRes] = await Promise.all([
+        fetch("/api/rankings", { cache: "no-store" }),
+        fetch("/api/inventory", { cache: "no-store" }),
+      ]);
+      if (rankingsRes.ok) {
+        let refreshed = await rankingsRes.json();
+        if (inventoryRes.ok) {
+          const inv = await inventoryRes.json();
+          refreshed = refreshed.map((p: Player) => ({
+            ...p,
+            inventoryValue: inv[p.steamId]?.value ?? null,
+          }));
+        }
+        setPlayers(refreshed);
+      }
     } finally { setRefreshing(false); }
   };
 
@@ -242,6 +271,9 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
       if (diff !== 0) return diff;
       if (!a.stats || !b.stats) return 0;
       return b.stats.kd_ratio - a.stats.kd_ratio;
+    }
+    if (sortBy === "inventoryValue") {
+      return (b.inventoryValue ?? -1) - (a.inventoryValue ?? -1);
     }
     if (!a.stats || !b.stats) return 0;
     const map: Record<string, keyof CS2Stats> = {
@@ -347,6 +379,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
           <SortBtn label="Headshot %" field="headshot_pct" />
 
           <SortBtn label="MVPs" field="total_mvps" />
+          <SortBtn label="Inventory" field="inventoryValue" />
         </div>
         <div className="flex items-center gap-2">
           {session && (
@@ -392,6 +425,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">HS %</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">MVPs</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Hours</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Inventory</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/50">
@@ -458,6 +492,9 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                     <td className="px-4 py-4 text-right">
                       {s ? <span className={`text-sm font-medium ${isHoursLeader ? "text-blue-400 font-black" : "text-gray-300"}`}>{s.hours_played.toLocaleString()}h</span> : <span className="text-gray-600">—</span>}
                     </td>
+                    <td className="px-4 py-4 text-right">
+                      {player.inventoryValue != null ? <span className="text-sm font-medium text-green-400">${player.inventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-gray-600">—</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -497,6 +534,7 @@ export default function RankingsTable({ initialPlayers, seasons }: Props) {
                     { label: "MVPs", value: s.total_mvps.toLocaleString(), color: "text-yellow-400" },
                     { label: "Deaths", value: s.total_deaths.toLocaleString(), color: "text-gray-400" },
                     { label: "Hours", value: `${s.hours_played}h`, color: "text-blue-400" },
+                    { label: "Inventory", value: player.inventoryValue != null ? `$${player.inventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—", color: player.inventoryValue != null ? "text-green-400" : "text-gray-600" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-[#0a0a0f] rounded-lg p-2">
                       <p className="text-[10px] text-gray-500 mb-0.5">{label}</p>
