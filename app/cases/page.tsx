@@ -2,20 +2,30 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { CASE_ITEMS, RARITY_LABEL, CASE_COST, type CaseItemDef } from "@/lib/caseItems";
+import { RARITY_LABEL, CASE_COST, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
 
 const ITEM_W = 132;   // px per roulette card (120px + 12px gap)
 const STRIP_LEN = 80;
-const LAND_IDX = 68;
-const SPIN_MS = 5200;
+const LAND_IDX = 68;  // winner lands here — enough runway to feel dramatic
+const SPIN_MS = 6000; // slightly longer for that satisfying slowdown
 
-function buildStrip(winner: CaseItemDef): CaseItemDef[] {
+/**
+ * Build the roulette strip using the same weighted distribution as the
+ * actual drop system — Mil-Spec items dominate (~80%), making a Covert
+ * or Rare Special stand out exactly as it would in CS2.
+ *
+ * A random sub-card offset (±40px) is returned separately so the reel
+ * never stops at the exact center pixel twice in a row.
+ */
+function buildStrip(winner: CaseItemDef): { strip: CaseItemDef[]; offset: number } {
   const strip: CaseItemDef[] = [];
   for (let i = 0; i < STRIP_LEN; i++) {
-    strip.push(CASE_ITEMS[Math.floor(Math.random() * CASE_ITEMS.length)]);
+    // Place winner at LAND_IDX; everything else is weighted-random
+    strip.push(i === LAND_IDX ? winner : weightedRandom());
   }
-  strip[LAND_IDX] = winner;
-  return strip;
+  // Random offset within ±40 px so landing position varies every open
+  const offset = (Math.random() - 0.5) * 80;
+  return { strip, offset };
 }
 
 function rarityGlow(color: string) {
@@ -123,7 +133,7 @@ export default function CasesPage() {
     }
 
     setBalance(data!.newBalance);
-    const newStrip = buildStrip(data!.item);
+    const { strip: newStrip, offset: landOffset } = buildStrip(data!.item);
     setStrip(newStrip);
     setShowStrip(true);
 
@@ -134,14 +144,16 @@ export default function CasesPage() {
         if (!el) return;
 
         const startX = cw / 2 - ITEM_W / 2;
-        const endX = -(LAND_IDX * ITEM_W) + cw / 2 - ITEM_W / 2;
+        // landOffset shifts the stopping point randomly within the card
+        const endX = -(LAND_IDX * ITEM_W) + cw / 2 - ITEM_W / 2 + landOffset;
 
         el.style.transition = "none";
         el.style.transform = `translateX(${startX}px)`;
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            el.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.12, 0, 0.0, 1)`;
+            // CS2-style curve: explosive start, heavy deceleration near end
+            el.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.07, 0, 0.0, 1)`;
             el.style.transform = `translateX(${endX}px)`;
           });
         });
@@ -152,7 +164,7 @@ export default function CasesPage() {
           setSpinning(false);
           fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
           fetch("/api/cases/recent").then(r => r.json()).then(d => { if (Array.isArray(d)) setRecent(d); });
-        }, SPIN_MS + 400);
+        }, SPIN_MS + 600);
       });
     });
   }
