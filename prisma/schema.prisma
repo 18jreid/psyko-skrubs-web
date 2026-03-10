@@ -28,10 +28,12 @@ model User {
   notifications   Notification[]
   clipVotes       ClipVote[]
   userItems       UserItem[]
+  sellerListings  MarketListing[] @relation("SellerListings")
+  buyerPurchases  MarketListing[] @relation("BuyerPurchases")
 }
 
 model CaseItem {
-  id        String     @id
+  id        String          @id
   name      String
   rarity    String
   color     String
@@ -39,16 +41,34 @@ model CaseItem {
   sellValue Int
   weight    Int
   userItems UserItem[]
+  listings  MarketListing[]
 }
 
 model UserItem {
-  id         String   @id
+  id         String         @id
   userId     String
   itemId     String
-  sold       Boolean  @default(false)
-  obtainedAt DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  item       CaseItem @relation(fields: [itemId], references: [id])
+  sold       Boolean        @default(false)
+  obtainedAt DateTime       @default(now())
+  user       User           @relation(fields: [userId], references: [id])
+  item       CaseItem       @relation(fields: [itemId], references: [id])
+  listing    MarketListing?
+}
+
+model MarketListing {
+  id         String    @id
+  sellerId   String
+  userItemId String    @unique
+  itemId     String
+  price      Int
+  status     String    @default("active")
+  buyerId    String?
+  createdAt  DateTime  @default(now())
+  soldAt     DateTime?
+  seller     User      @relation("SellerListings", fields: [sellerId], references: [id])
+  buyer      User?     @relation("BuyerPurchases", fields: [buyerId], references: [id])
+  userItem   UserItem  @relation(fields: [userItemId], references: [id])
+  item       CaseItem  @relation(fields: [itemId], references: [id])
 }
 
 model GamingSession {
