@@ -14,6 +14,7 @@ model User {
   profileUrl    String
   leetifyToken  String?
   cs2Elo        Int?
+  balance       Int       @default(1000)
   createdAt     DateTime  @default(now())
   clips           Clip[]
   clipLikes       ClipLike[]
@@ -26,6 +27,28 @@ model User {
   achievements    Achievement[]
   notifications   Notification[]
   clipVotes       ClipVote[]
+  userItems       UserItem[]
+}
+
+model CaseItem {
+  id        String     @id
+  name      String
+  rarity    String
+  color     String
+  emoji     String
+  sellValue Int
+  weight    Int
+  userItems UserItem[]
+}
+
+model UserItem {
+  id         String   @id
+  userId     String
+  itemId     String
+  sold       Boolean  @default(false)
+  obtainedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  item       CaseItem @relation(fields: [itemId], references: [id])
 }
 
 model GamingSession {
