@@ -2,17 +2,23 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCase, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
+import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCase, weightedRandom, weightedRandomForCase, type CaseItemDef } from "@/lib/caseItems";
+
+// Legacy items are the first 16 entries (ms_1 … rs_2) — used by direct open tab
+const LEGACY_ITEMS = CASE_ITEMS.filter(i => !i.caseId);
 
 const ITEM_W = 132;
 const STRIP_LEN = 80;
 const LAND_IDX = 68;
 const SPIN_MS = 6000;
 
-function buildStrip(winner: CaseItemDef): { strip: CaseItemDef[]; offset: number } {
+function buildStrip(winner: CaseItemDef, caseTypeId?: string): { strip: CaseItemDef[]; offset: number } {
   const strip: CaseItemDef[] = [];
+  const filler = caseTypeId
+    ? () => weightedRandomForCase(caseTypeId)
+    : () => weightedRandom();
   for (let i = 0; i < STRIP_LEN; i++) {
-    strip.push(i === LAND_IDX ? winner : weightedRandom());
+    strip.push(i === LAND_IDX ? winner : filler());
   }
   const offset = (Math.random() - 0.5) * 80;
   return { strip, offset };
@@ -134,7 +140,7 @@ export default function CasesPage() {
   }
 
   // ── Open owned case ──
-  async function openOwnedCase(userCaseId: string) {
+  async function openOwnedCase(userCaseId: string, caseTypeId: string) {
     if (openingCaseId) return;
     setOpeningCaseId(userCaseId);
 
@@ -162,11 +168,11 @@ export default function CasesPage() {
     setShowResult(false);
     setResult(null);
     setSellMsg(null);
-    animateSpin(data!.item, data!.userItemId);
+    animateSpin(data!.item, data!.userItemId, caseTypeId);
   }
 
-  function animateSpin(item: CaseItemDef, userItemId: string) {
-    const { strip: newStrip, offset: landOffset } = buildStrip(item);
+  function animateSpin(item: CaseItemDef, userItemId: string, caseTypeId?: string) {
+    const { strip: newStrip, offset: landOffset } = buildStrip(item, caseTypeId);
     setStrip(newStrip);
     setShowStrip(true);
 
@@ -428,7 +434,7 @@ export default function CasesPage() {
               <div>
                 <p className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-3">Items in this case</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {CASE_ITEMS.map(item => (
+                  {LEGACY_ITEMS.map(item => (
                     <div key={item.id} className="rounded-xl border p-3 flex flex-col items-center gap-2 text-center"
                       style={{ borderColor: `${item.color}33`, background: `${item.color}0d` }}>
                       {imageMap[item.id] ? (
@@ -455,7 +461,8 @@ export default function CasesPage() {
             <p className="text-sm text-gray-500 mb-6">
               Buy cases to open from your inventory — or sell them on the{" "}
               <a href="/market" className="text-orange-400 hover:underline">marketplace</a>.
-              Higher-tier cases guarantee rarer drops.
+              All cases use <span className="text-orange-400 font-bold">identical CS2 drop rates</span> —
+              higher-priced cases contain more valuable items at every tier.
             </p>
             {buyMsg && (
               <div className="mb-6 px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 font-bold text-sm">
@@ -629,7 +636,7 @@ export default function CasesPage() {
                         ) : (
                           <>
                             <button
-                              onClick={() => openOwnedCase(uc.id)}
+                              onClick={() => openOwnedCase(uc.id, uc.caseType.id)}
                               disabled={openingCaseId === uc.id}
                               className="px-3 py-1.5 text-xs font-black rounded-lg text-white transition-colors disabled:opacity-50"
                               style={{ background: accent }}

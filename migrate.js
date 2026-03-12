@@ -292,6 +292,101 @@ const migrations = [
     `,
   },
   {
+    name: "20260311_real_cs2_cases",
+    sql: `
+      -- Rename case types to match real CS2 cases
+      UPDATE "CaseType" SET "name"='Chroma Case',     "description"='Classic 2015 case. Full CS2 odds — knives as rare special.',         "imageEmoji"='🎨' WHERE "id"='psyko_case_v1';
+      UPDATE "CaseType" SET "name"='Revolution Case', "description"='Feb 2023 case. Gloves as rare special. Popular skins at every tier.', "imageEmoji"='🌀' WHERE "id"='psyko_restricted_v1';
+      UPDATE "CaseType" SET "name"='Recoil Case',     "description"='June 2022 case. Gloves as rare special. Home of USP-S | Printstream.', "imageEmoji"='🎯' WHERE "id"='psyko_classified_v1';
+      UPDATE "CaseType" SET "name"='Kilowatt Case',   "description"='First CS2-exclusive case. Kukri Knife as rare special.',             "imageEmoji"='⚡' WHERE "id"='psyko_elite_v1';
+
+      -- Chroma Case items
+      INSERT OR IGNORE INTO "CaseItem" ("id","name","rarity","color","emoji","sellValue","weight") VALUES
+        ('chr_ms_1','Glock-18 | Catacombs (Field-Tested)',        'mil-spec',     '#4b69ff','🔵',20,   1),
+        ('chr_ms_2','MP9 | Deadly Poison (Field-Tested)',          'mil-spec',     '#4b69ff','🔵',20,   1),
+        ('chr_ms_3','SCAR-20 | Grotto (Minimal Wear)',             'mil-spec',     '#4b69ff','🔵',25,   1),
+        ('chr_ms_4','M249 | System Lock (Field-Tested)',           'mil-spec',     '#4b69ff','🔵',15,   1),
+        ('chr_ms_5','XM1014 | Quicksilver (Field-Tested)',         'mil-spec',     '#4b69ff','🔵',20,   1),
+        ('chr_r_1', 'Desert Eagle | Naga (Field-Tested)',          'restricted',   '#8847ff','🟣',90,   1),
+        ('chr_r_2', 'Sawed-Off | Serenity (Field-Tested)',         'restricted',   '#8847ff','🟣',70,   1),
+        ('chr_r_3', 'MAC-10 | Malachite (Minimal Wear)',           'restricted',   '#8847ff','🟣',80,   1),
+        ('chr_r_4', 'Dual Berettas | Urban Shock (Field-Tested)',  'restricted',   '#8847ff','🟣',75,   1),
+        ('chr_c_1', 'M4A4 | Dragon King (Field-Tested)',           'classified',   '#d32ce6','🩷',420,  1),
+        ('chr_c_2', 'AK-47 | Cartel (Field-Tested)',               'classified',   '#d32ce6','🩷',380,  1),
+        ('chr_c_3', 'P250 | Muertos (Field-Tested)',               'classified',   '#d32ce6','🩷',350,  1),
+        ('chr_cv_1','AWP | Man-o''-war (Field-Tested)',            'covert',       '#eb4b4b','🔴',2200, 1),
+        ('chr_cv_2','Galil AR | Chatterbox (Field-Tested)',        'covert',       '#eb4b4b','🔴',1800, 1),
+        ('chr_rs_1','★ Karambit | Doppler (Factory New)',          'rare-special', '#ffd700','⭐',12000,1),
+        ('chr_rs_2','★ Bayonet | Tiger Tooth (Factory New)',       'rare-special', '#ffd700','⭐',8000, 1);
+
+      -- Revolution Case items
+      INSERT OR IGNORE INTO "CaseItem" ("id","name","rarity","color","emoji","sellValue","weight") VALUES
+        ('rev_ms_1','MAG-7 | Insomnia (Field-Tested)',             'mil-spec',     '#4b69ff','🔵',75,   1),
+        ('rev_ms_2','MP9 | Featherweight (Field-Tested)',           'mil-spec',     '#4b69ff','🔵',80,   1),
+        ('rev_ms_3','SCAR-20 | Fragments (Field-Tested)',           'mil-spec',     '#4b69ff','🔵',75,   1),
+        ('rev_ms_4','P250 | Re.built (Minimal Wear)',               'mil-spec',     '#4b69ff','🔵',90,   1),
+        ('rev_ms_5','MP5-SD | Liquidation (Field-Tested)',          'mil-spec',     '#4b69ff','🔵',80,   1),
+        ('rev_ms_6','SG 553 | Cyberforce (Field-Tested)',           'mil-spec',     '#4b69ff','🔵',70,   1),
+        ('rev_ms_7','Tec-9 | Rebel (Field-Tested)',                 'mil-spec',     '#4b69ff','🔵',75,   1),
+        ('rev_r_1', 'M4A1-S | Emphorosaur-S (Field-Tested)',       'restricted',   '#8847ff','🟣',280,  1),
+        ('rev_r_2', 'Glock-18 | Umbral Rabbit (Field-Tested)',     'restricted',   '#8847ff','🟣',240,  1),
+        ('rev_r_3', 'MAC-10 | Sakkaku (Field-Tested)',              'restricted',   '#8847ff','🟣',220,  1),
+        ('rev_r_4', 'R8 Revolver | Banana Cannon (Minimal Wear)',  'restricted',   '#8847ff','🟣',250,  1),
+        ('rev_r_5', 'P90 | Neoqueen (Field-Tested)',                'restricted',   '#8847ff','🟣',300,  1),
+        ('rev_c_1', 'AWP | Duality (Field-Tested)',                 'classified',   '#d32ce6','🩷',1300, 1),
+        ('rev_c_2', 'UMP-45 | Wild Child (Minimal Wear)',           'classified',   '#d32ce6','🩷',1100, 1),
+        ('rev_c_3', 'P2000 | Wicked Sick (Field-Tested)',           'classified',   '#d32ce6','🩷',1200, 1),
+        ('rev_cv_1','M4A4 | Temukau (Field-Tested)',                'covert',       '#eb4b4b','🔴',6500, 1),
+        ('rev_cv_2','AK-47 | Head Shot (Factory New)',              'covert',       '#eb4b4b','🔴',5500, 1),
+        ('rev_rs_1','★ Sport Gloves | Pandora''s Box (FN)',        'rare-special', '#ffd700','⭐',35000,1),
+        ('rev_rs_2','★ Hand Wraps | Cobalt Skulls (FN)',           'rare-special', '#ffd700','⭐',25000,1);
+
+      -- Recoil Case items
+      INSERT OR IGNORE INTO "CaseItem" ("id","name","rarity","color","emoji","sellValue","weight") VALUES
+        ('rec_ms_1','M4A4 | Cyber Security (Field-Tested)',        'mil-spec',     '#4b69ff','🔵',200,  1),
+        ('rec_ms_2','P250 | Vino Primo (Field-Tested)',             'mil-spec',     '#4b69ff','🔵',180,  1),
+        ('rec_ms_3','FAMAS | Decommissioned (Minimal Wear)',        'mil-spec',     '#4b69ff','🔵',220,  1),
+        ('rec_ms_4','G3SG1 | Styx (Field-Tested)',                  'mil-spec',     '#4b69ff','🔵',190,  1),
+        ('rec_ms_5','Desert Eagle | Blue Ply (Field-Tested)',       'mil-spec',     '#4b69ff','🔵',210,  1),
+        ('rec_ms_6','PP-Bizon | Fuel Rod (Minimal Wear)',           'mil-spec',     '#4b69ff','🔵',175,  1),
+        ('rec_ms_7','Nova | Sobek (Field-Tested)',                  'mil-spec',     '#4b69ff','🔵',185,  1),
+        ('rec_r_1', 'Glock-18 | Winterized (Field-Tested)',        'restricted',   '#8847ff','🟣',850,  1),
+        ('rec_r_2', 'M249 | Downtown (Field-Tested)',               'restricted',   '#8847ff','🟣',750,  1),
+        ('rec_r_3', 'MAC-10 | Alloy (Minimal Wear)',                'restricted',   '#8847ff','🟣',780,  1),
+        ('rec_r_4', 'R8 Revolver | Crazy 8 (Field-Tested)',        'restricted',   '#8847ff','🟣',900,  1),
+        ('rec_r_5', 'M4A1-S | Nightmare (Field-Tested)',            'restricted',   '#8847ff','🟣',820,  1),
+        ('rec_c_1', 'AK-47 | Ice Coaled (Field-Tested)',            'classified',   '#d32ce6','🩷',5000, 1),
+        ('rec_c_2', 'Sawed-Off | Kiss♥Love (Factory New)',         'classified',   '#d32ce6','🩷',4000, 1),
+        ('rec_c_3', 'P250 | Visions (Field-Tested)',                'classified',   '#d32ce6','🩷',4500, 1),
+        ('rec_cv_1','USP-S | Printstream (Factory New)',            'covert',       '#eb4b4b','🔴',25000,1),
+        ('rec_cv_2','AWP | Chromatic Aberration (Field-Tested)',    'covert',       '#eb4b4b','🔴',15000,1),
+        ('rec_rs_1','★ Specialist Gloves | Marble Fade (FN)',      'rare-special', '#ffd700','⭐',120000,1),
+        ('rec_rs_2','★ Sport Gloves | Slingshot (Factory New)',    'rare-special', '#ffd700','⭐',80000, 1);
+
+      -- Kilowatt Case items
+      INSERT OR IGNORE INTO "CaseItem" ("id","name","rarity","color","emoji","sellValue","weight") VALUES
+        ('kw_ms_1','Dual Berettas | Hideout (Field-Tested)',        'mil-spec',     '#4b69ff','🔵',600,   1),
+        ('kw_ms_2','MAC-10 | Light Box (Minimal Wear)',              'mil-spec',     '#4b69ff','🔵',650,   1),
+        ('kw_ms_3','Nova | Dark Sigil (Field-Tested)',               'mil-spec',     '#4b69ff','🔵',580,   1),
+        ('kw_ms_4','SSG 08 | Dezastre (Field-Tested)',               'mil-spec',     '#4b69ff','🔵',620,   1),
+        ('kw_ms_5','Tec-9 | Slag (Field-Tested)',                    'mil-spec',     '#4b69ff','🔵',560,   1),
+        ('kw_ms_6','UMP-45 | Motorized (Minimal Wear)',              'mil-spec',     '#4b69ff','🔵',640,   1),
+        ('kw_ms_7','XM1014 | Irezumi (Field-Tested)',                'mil-spec',     '#4b69ff','🔵',590,   1),
+        ('kw_r_1', 'Glock-18 | Block-18 (Factory New)',              'restricted',   '#8847ff','🟣',2800,  1),
+        ('kw_r_2', 'M4A4 | Etch Lord (Field-Tested)',                'restricted',   '#8847ff','🟣',2200,  1),
+        ('kw_r_3', 'Five-SeveN | Hybrid (Minimal Wear)',             'restricted',   '#8847ff','🟣',2500,  1),
+        ('kw_r_4', 'MP7 | Just Smile (Field-Tested)',                'restricted',   '#8847ff','🟣',2000,  1),
+        ('kw_r_5', 'Sawed-Off | Analog Input (Factory New)',         'restricted',   '#8847ff','🟣',2400,  1),
+        ('kw_c_1', 'M4A1-S | Black Lotus (Factory New)',             'classified',   '#d32ce6','🩷',14000, 1),
+        ('kw_c_2', 'Zeus x27 | Olympus (Minimal Wear)',              'classified',   '#d32ce6','🩷',10000, 1),
+        ('kw_c_3', 'USP-S | Jawbreaker (Field-Tested)',              'classified',   '#d32ce6','🩷',12000, 1),
+        ('kw_cv_1','AK-47 | Inheritance (Factory New)',              'covert',       '#eb4b4b','🔴',70000, 1),
+        ('kw_cv_2','AWP | Chrome Cannon (Factory New)',              'covert',       '#eb4b4b','🔴',50000, 1),
+        ('kw_rs_1','★ Kukri Knife | Fade (Factory New)',             'rare-special', '#ffd700','⭐',350000,1),
+        ('kw_rs_2','★ Kukri Knife | Crimson Web (Factory New)',      'rare-special', '#ffd700','⭐',250000,1);
+    `,
+  },
+  {
     name: "20260311_add_tiered_cases",
     sql: `
       INSERT OR IGNORE INTO "CaseType" ("id","name","description","imageEmoji","price","isActive") VALUES
