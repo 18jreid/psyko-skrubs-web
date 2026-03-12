@@ -184,6 +184,8 @@ export default function SlotsPage() {
     winType: string | null;
     winnings: number;
     delta: number;
+    bet: number;
+    balance: number;
   } | null>(null);
   const [winColors, setWinColors] = useState<[string | null, string | null, string | null]>([null, null, null]);
   const [error, setError] = useState<string | null>(null);
