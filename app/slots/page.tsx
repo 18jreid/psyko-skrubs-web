@@ -209,10 +209,19 @@ export default function SlotsPage() {
 
     if (result.multiplier > 0) {
       const wt = result.winType ?? "";
-      const isPair = wt.startsWith("pair-");
-      const sid = wt.replace("triple-", "").replace("pair-", "") || "cherry";
-      const col = getSymbol(sid).color;
-      setWinColors([col, col, isPair ? null : col]);
+      if (wt.startsWith("triple-")) {
+        const col = getSymbol(wt.replace("triple-", "")).color;
+        setWinColors([col, col, col]);
+      } else if (wt.startsWith("pair23-")) {
+        const col = getSymbol(wt.replace("pair23-", "")).color;
+        setWinColors([null, col, col]);
+      } else if (wt.startsWith("pair-")) {
+        const col = getSymbol(wt.replace("pair-", "")).color;
+        setWinColors([col, col, null]);
+      } else {
+        // cherry
+        setWinColors(["#dc2626", "#dc2626", "#dc2626"]);
+      }
     }
   }, [stoppedCount, spinState]);
 
@@ -467,7 +476,7 @@ export default function SlotsPage() {
                 </div>
               </div>
               <div className="px-4 pb-3 text-center">
-                <p className="text-xs text-gray-700">Pair = first two reels match · Any single cherry = ½ bet back</p>
+                <p className="text-xs text-gray-700">Reels 1+2 pair = full payout · Reels 2+3 pair = ½ payout · Any cherry = ½ bet back</p>
               </div>
             </div>
           )}

@@ -60,14 +60,22 @@ export interface PayoutResult {
 export function calcPayout(reels: [string, string, string]): PayoutResult {
   const [a, b, c] = reels;
 
+  // 3 of a kind
   if (a === b && b === c) {
     return { multiplier: SLOT_PAYOUTS[a]?.three ?? 0, winType: `triple-${a}` };
   }
 
+  // Pair on reels 1+2 — full pair payout
   if (a === b && SLOT_PAYOUTS[a]?.two !== undefined) {
     return { multiplier: SLOT_PAYOUTS[a].two!, winType: `pair-${a}` };
   }
 
+  // Pair on reels 2+3 — half pair payout
+  if (b === c && SLOT_PAYOUTS[b]?.two !== undefined) {
+    return { multiplier: SLOT_PAYOUTS[b].two! / 2, winType: `pair23-${b}` };
+  }
+
+  // Any single cherry anywhere — half bet back
   if (a === "cherry" || b === "cherry" || c === "cherry") {
     return { multiplier: CHERRY_CONSOLATION, winType: "cherry" };
   }
