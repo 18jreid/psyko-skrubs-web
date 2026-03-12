@@ -45,6 +45,9 @@ COPY migrate.js ./migrate.js
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
+# Allow nextjs user to write Next.js cache
+RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
+
 # Startup script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh

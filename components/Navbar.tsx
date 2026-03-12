@@ -97,7 +97,7 @@ export default function Navbar() {
               <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse" />
             ) : session ? (
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
+                <Link href={`/profile/${session.user.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                   {session.user.image && (
                     <Image
                       src={session.user.image}
@@ -110,7 +110,7 @@ export default function Navbar() {
                   <span className="text-sm text-gray-300 font-medium">
                     {session.user.name}
                   </span>
-                </div>
+                </Link>
                 <NotificationBell />
                 <button
                   onClick={() => signOut()}
@@ -159,7 +159,7 @@ export default function Navbar() {
             <div className="pt-2 border-t border-gray-800">
               {session ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <Link href={`/profile/${session.user.id}`} onClick={() => setMenuOpen(false)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                     {session.user.image && (
                       <Image
                         src={session.user.image}
@@ -170,7 +170,7 @@ export default function Navbar() {
                       />
                     )}
                     <span className="text-sm text-gray-300">{session.user.name}</span>
-                  </div>
+                  </Link>
                   <button
                     onClick={() => signOut()}
                     className="text-sm text-red-400 hover:text-red-300"
