@@ -14,19 +14,25 @@ export interface CaseItemDef {
 
 // ── Official CS2 rarity colors ────────────────────────────────────────────────
 export const RARITY_COLOR: Record<string, string> = {
+  "consumer":     "#b0c3d9",
+  "industrial":   "#5e98d9",
   "mil-spec":     "#4b69ff",
   "restricted":   "#8847ff",
   "classified":   "#d32ce6",
   "covert":       "#eb4b4b",
+  "contraband":   "#e4ae39",
   "rare-special": "#ffd700",
 };
 
 export const RARITY_LABEL: Record<string, string> = {
+  "consumer":     "Consumer Grade",
+  "industrial":   "Industrial Grade",
   "mil-spec":     "Mil-Spec Grade",
   "restricted":   "Restricted",
   "classified":   "Classified",
   "covert":       "Covert",
-  "rare-special": "Rare Special ★",
+  "contraband":   "Contraband",
+  "rare-special": "★ Rare Special",
 };
 
 // ── Official CS2 drop rates (disclosed by Valve via Perfect World China, 2017)

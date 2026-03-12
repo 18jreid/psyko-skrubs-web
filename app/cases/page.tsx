@@ -149,7 +149,7 @@ export default function CasesPage() {
     if (openingCaseId) return;
     setOpeningCaseId(userCaseId);
 
-    let data: { item: CaseItemDef; userItemId: string } | null = null;
+    let data: { item: CaseItemDef; userItemId: string; float: number | null } | null = null;
     try {
       const res = await fetch(`/api/cases/open-owned/${userCaseId}`, { method: "POST" });
       if (!res.ok) {
