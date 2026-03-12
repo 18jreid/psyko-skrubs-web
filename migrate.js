@@ -396,6 +396,13 @@ const migrations = [
     `,
   },
   {
+    name: "20260312_add_image_url_cache",
+    sql: `
+      ALTER TABLE "CaseItem" ADD COLUMN "imageUrl" TEXT;
+      ALTER TABLE "CaseType" ADD COLUMN "imageUrl" TEXT;
+    `,
+  },
+  {
     name: "20260312_fix_case_type_names",
     sql: `
       UPDATE "CaseType" SET "name"='Revolution Case', "description"='Feb 2023 case. Gloves as rare special. Popular skins at every tier.', "imageEmoji"='🌀' WHERE "id"='psyko_restricted_v1';
