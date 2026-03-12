@@ -47,8 +47,8 @@ function computeWaypoints(path: ("L" | "R")[], rows: PlinkoRows) {
 }
 
 // ── Timing — deliberately slower for satisfying visual ───────────────────────
-function stepMs(rows: PlinkoRows)       { return rows === 8 ? 190 : rows === 12 ? 155 : 125; }
-function transitionMs(rows: PlinkoRows) { return rows === 8 ? 170 : rows === 12 ? 135 : 108; }
+function stepMs(rows: PlinkoRows)       { return rows === 8 ? 200 : rows === 12 ? 180 : 195; }
+function transitionMs(rows: PlinkoRows) { return rows === 8 ? 178 : rows === 12 ? 160 : 173; }
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface SingleDrop {
