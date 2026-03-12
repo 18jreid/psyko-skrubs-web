@@ -285,7 +285,19 @@ const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS "CaseMarketListing_userCaseId_key" ON "CaseMarketListing"("userCaseId");
 
       INSERT OR IGNORE INTO "CaseType" ("id","name","description","imageEmoji","price","isActive") VALUES
-        ('psyko_case_v1','Psyko Case','The original Psyko Skrubs case. Contains 16 exclusive skins.','📦',500,1);
+        ('psyko_case_v1',     'Psyko Case',           'The original Psyko Skrubs case. Full pool — Mil-Spec to Rare Special.', '📦', 500,   1),
+        ('psyko_restricted_v1','Psyko Restricted Case','Guaranteed Restricted or better. Higher floor, bigger rewards.',        '🟣', 1500,  1),
+        ('psyko_classified_v1','Psyko Classified Case','Guaranteed Classified or better. Only the finest skins inside.',        '🩷', 5000,  1),
+        ('psyko_elite_v1',    'Psyko Elite Case',     'Covert and Rare Special drops only. The rarest of the rare.',           '⭐', 15000, 1);
+    `,
+  },
+  {
+    name: "20260311_add_tiered_cases",
+    sql: `
+      INSERT OR IGNORE INTO "CaseType" ("id","name","description","imageEmoji","price","isActive") VALUES
+        ('psyko_restricted_v1','Psyko Restricted Case','Guaranteed Restricted or better. Higher floor, bigger rewards.',  '🟣', 1500,  1),
+        ('psyko_classified_v1','Psyko Classified Case','Guaranteed Classified or better. Only the finest skins inside.', '🩷', 5000,  1),
+        ('psyko_elite_v1',    'Psyko Elite Case',     'Covert and Rare Special drops only. The rarest of the rare.',    '⭐', 15000, 1);
     `,
   },
   {

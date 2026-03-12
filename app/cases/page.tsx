@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { RARITY_LABEL, CASE_ITEMS, CASE_COST, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
+import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCase, weightedRandom, type CaseItemDef } from "@/lib/caseItems";
 
 const ITEM_W = 132;
 const STRIP_LEN = 80;
@@ -455,6 +455,7 @@ export default function CasesPage() {
             <p className="text-sm text-gray-500 mb-6">
               Buy cases to open from your inventory — or sell them on the{" "}
               <a href="/market" className="text-orange-400 hover:underline">marketplace</a>.
+              Higher-tier cases guarantee rarer drops.
             </p>
             {buyMsg && (
               <div className="mb-6 px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 font-bold text-sm">
@@ -466,42 +467,98 @@ export default function CasesPage() {
             ) : shopCases.length === 0 ? (
               <p className="text-gray-500 text-center py-12">No cases available in the shop right now.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {shopCases.map(ct => (
-                  <div key={ct.id} className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-6 flex flex-col gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-4xl shrink-0">
-                        {ct.imageEmoji}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {shopCases.map(ct => {
+                  const profile = CASE_DROP_PROFILES[ct.id];
+                  const tierEntries = profile ? Object.entries(profile.tiers) as [string, number][] : [];
+                  const total = tierEntries.reduce((s, [, w]) => s + w, 0);
+                  const casePool = getItemsForCase(ct.id);
+                  const rarityColors: Record<string, string> = {
+                    "mil-spec": "#4b69ff", "restricted": "#8847ff", "classified": "#d32ce6",
+                    "covert": "#eb4b4b", "rare-special": "#ffd700",
+                  };
+                  const canAfford = balance === null || balance >= ct.price;
+
+                  return (
+                    <div key={ct.id}
+                      className="rounded-2xl border flex flex-col overflow-hidden"
+                      style={{ borderColor: canAfford ? "#f9731633" : "#37415133", background: "#0d0d15" }}
+                    >
+                      {/* Header stripe — color gradient based on highest tier */}
+                      {tierEntries.length > 0 && (
+                        <div className="h-1 w-full" style={{
+                          background: `linear-gradient(to right, ${
+                            tierEntries.map(([t]) => rarityColors[t] ?? "#f97316").join(", ")
+                          })`,
+                        }} />
+                      )}
+
+                      <div className="p-5 flex gap-4">
+                        {/* Emoji icon */}
+                        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-4xl shrink-0"
+                          style={{ background: "#f9731610", border: "1px solid #f9731620" }}>
+                          {ct.imageEmoji}
+                        </div>
+
+                        {/* Name + description + price */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-black text-white leading-tight">{ct.name}</h3>
+                          {ct.description && <p className="text-xs text-gray-500 mt-1">{ct.description}</p>}
+                          <p className="text-2xl font-black text-yellow-400 mt-2">{ct.price.toLocaleString()} <span className="text-base">₱</span></p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-black text-white">{ct.name}</h3>
-                        {ct.description && <p className="text-xs text-gray-500 mt-0.5">{ct.description}</p>}
+
+                      {/* Drop rate bars */}
+                      {tierEntries.length > 0 && (
+                        <div className="px-5 pb-3 flex flex-wrap gap-2">
+                          {tierEntries.map(([tier, w]) => (
+                            <div key={tier} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs"
+                              style={{ background: `${rarityColors[tier]}15`, border: `1px solid ${rarityColors[tier]}30` }}>
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: rarityColors[tier] }} />
+                              <span className="font-bold" style={{ color: rarityColors[tier] }}>{RARITY_LABEL[tier]}</span>
+                              <span className="text-gray-500">{((w / total) * 100).toFixed(2)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Item pool preview (collapsed, up to 8 items) */}
+                      <div className="px-5 pb-4">
+                        <p className="text-xs text-gray-700 uppercase tracking-wider font-bold mb-2">Contains {casePool.length} skins</p>
+                        <div className="flex flex-wrap gap-1">
+                          {casePool.slice(0, 8).map(item => (
+                            <div key={item.id} className="px-2 py-0.5 rounded text-xs font-medium truncate max-w-[140px]"
+                              style={{ background: `${item.color}15`, color: item.color, border: `1px solid ${item.color}25` }}>
+                              {item.name.split(" | ")[1]?.split(" (")[0] ?? item.name}
+                            </div>
+                          ))}
+                          {casePool.length > 8 && (
+                            <div className="px-2 py-0.5 rounded text-xs font-medium text-gray-600 bg-gray-800/50">
+                              +{casePool.length - 8} more
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Buy button */}
+                      <div className="px-5 pb-5 mt-auto">
+                        <button
+                          onClick={() => buyCase(ct)}
+                          disabled={buyingCaseId === ct.id || !canAfford}
+                          className={`w-full py-3 text-sm font-black rounded-xl transition-all ${
+                            !canAfford
+                              ? "bg-gray-800 text-gray-600 cursor-not-allowed"
+                              : buyingCaseId === ct.id
+                              ? "bg-orange-500/50 text-white cursor-wait"
+                              : "bg-orange-500 hover:bg-orange-400 text-white shadow-lg shadow-orange-500/20 hover:scale-[1.02]"
+                          }`}
+                        >
+                          {buyingCaseId === ct.id ? "Buying…" : !canAfford ? `Need ${(ct.price - (balance ?? 0)).toLocaleString()} ₱ more` : `Buy for ${ct.price.toLocaleString()} ₱`}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-2xl font-black text-yellow-400">{ct.price.toLocaleString()} ₱</p>
-                        <p className="text-xs text-gray-600">per case</p>
-                      </div>
-                      <button
-                        onClick={() => buyCase(ct)}
-                        disabled={buyingCaseId === ct.id || (balance !== null && balance < ct.price)}
-                        className={`px-6 py-2.5 text-sm font-black rounded-xl transition-all ${
-                          balance !== null && balance < ct.price
-                            ? "bg-gray-800 text-gray-600 cursor-not-allowed"
-                            : buyingCaseId === ct.id
-                            ? "bg-orange-500/50 text-white cursor-wait"
-                            : "bg-orange-500 hover:bg-orange-400 text-white shadow-lg shadow-orange-500/20 hover:scale-105"
-                        }`}
-                      >
-                        {buyingCaseId === ct.id ? "Buying…" : "Buy Case"}
-                      </button>
-                    </div>
-                    {balance !== null && balance < ct.price && (
-                      <p className="text-xs text-red-400 font-bold">Insufficient balance</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -532,15 +589,31 @@ export default function CasesPage() {
               <>
                 <p className="text-xs text-gray-600 mb-4">{myCases.length} case{myCases.length !== 1 ? "s" : ""} in your inventory</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {myCases.map(uc => (
-                    <div key={uc.id}
-                      className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-3xl shrink-0">
+                  {myCases.map(uc => {
+                    const profile = CASE_DROP_PROFILES[uc.caseType.id];
+                    const tiers = profile ? Object.keys(profile.tiers) : [];
+                    const tierColors: Record<string, string> = {
+                      "mil-spec": "#4b69ff", "restricted": "#8847ff", "classified": "#d32ce6",
+                      "covert": "#eb4b4b", "rare-special": "#ffd700",
+                    };
+                    const floorTier = tiers[0];
+                    const topTier = tiers[tiers.length - 1];
+                    const accent = tierColors[topTier] ?? "#f97316";
+                    return (
+                    <div key={uc.id} className="rounded-xl border p-4 flex items-center gap-4"
+                      style={{ borderColor: `${accent}33`, background: `${accent}08` }}>
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0"
+                        style={{ background: `${accent}15`, border: `1px solid ${accent}30` }}>
                         {uc.caseType.imageEmoji}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-black text-white">{uc.caseType.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{new Date(uc.obtainedAt).toLocaleDateString()}</p>
+                        {floorTier && (
+                          <p className="text-xs font-bold mt-0.5" style={{ color: tierColors[floorTier] }}>
+                            {RARITY_LABEL[floorTier]}+ drops
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-600 mt-0.5">{new Date(uc.obtainedAt).toLocaleDateString()}</p>
                         {uc.listed && (
                           <span className="inline-block mt-1 px-2 py-0.5 text-xs font-bold rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
                             Listed on market
@@ -558,7 +631,8 @@ export default function CasesPage() {
                             <button
                               onClick={() => openOwnedCase(uc.id)}
                               disabled={openingCaseId === uc.id}
-                              className="px-3 py-1.5 text-xs font-black rounded-lg bg-orange-500 hover:bg-orange-400 text-white transition-colors disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-black rounded-lg text-white transition-colors disabled:opacity-50"
+                              style={{ background: accent }}
                             >
                               {openingCaseId === uc.id ? "Opening…" : "Open"}
                             </button>
@@ -572,7 +646,8 @@ export default function CasesPage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
