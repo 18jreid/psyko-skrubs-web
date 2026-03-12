@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { RARITY_LABEL, WEAR_RANGES, getWearFromName } from "@/lib/caseItems";
+import { RARITY_LABEL, WEAR_RANGES, getWearFromName, toUSD } from "@/lib/caseItems";
 import imageData from "@/lib/itemImages.json";
 
 const staticImages = imageData as Record<string, string | null>;
@@ -159,6 +159,7 @@ export default function InspectPage() {
                 <div className="bg-gray-900/50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-1">Sell Value</p>
                   <p className="text-xl font-black text-yellow-400">{item.sellValue.toLocaleString()} ₱</p>
+                  <p className="text-xs text-gray-600 font-mono mt-0.5">≈ {toUSD(item.sellValue)}</p>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-1">Obtained</p>

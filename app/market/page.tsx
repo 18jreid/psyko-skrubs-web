@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { CASE_ITEMS, RARITY_LABEL, type CaseItemDef } from "@/lib/caseItems";
+import { CASE_ITEMS, RARITY_LABEL, toUSD, type CaseItemDef } from "@/lib/caseItems";
 
 const MARKET_FEE = 0.05;
 
@@ -274,9 +274,12 @@ export default function MarketPage() {
           </div>
           <div className="flex items-center gap-4">
             {balance !== null && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-                <span className="text-yellow-400 font-black text-xl">{balance.toLocaleString()}</span>
-                <span className="text-yellow-500 text-sm font-bold">₱</span>
+              <div className="flex flex-col items-end px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-400 font-black text-xl">{balance.toLocaleString()}</span>
+                  <span className="text-yellow-500 text-sm font-bold">₱</span>
+                </div>
+                <span className="text-gray-500 text-xs font-mono">≈ {toUSD(balance)}</span>
               </div>
             )}
           </div>
@@ -363,7 +366,8 @@ export default function MarketPage() {
                       </div>
                     </div>
                     <div className="p-2.5 pt-0">
-                      <p className="text-base font-black text-yellow-400 mb-1.5">{listing.price.toLocaleString()} ₱</p>
+                      <p className="text-base font-black text-yellow-400 mb-0.5">{listing.price.toLocaleString()} ₱</p>
+                      <p className="text-xs text-gray-600 font-mono mb-1">≈ {toUSD(listing.price)}</p>
                       {listing.isMine ? (
                         <button onClick={() => cancelListing(listing.id)}
                           className="w-full py-1.5 text-xs font-bold rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 border border-gray-700 hover:border-red-500/30 transition-colors">
@@ -456,6 +460,7 @@ export default function MarketPage() {
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
                         <p className="text-base font-black text-yellow-400">{l.price.toLocaleString()} ₱</p>
+                        <p className="text-xs text-gray-600 font-mono">≈ {toUSD(l.price)}</p>
                         {l.status === "active" && <p className="text-xs text-gray-600">You get: {sellerPayout(l.price).toLocaleString()} ₱</p>}
                       </div>
                       <StatusBadge status={l.status} />
@@ -499,6 +504,7 @@ export default function MarketPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-black text-yellow-400">{s.price.toLocaleString()} ₱</p>
+                      <p className="text-xs text-gray-600 font-mono">≈ {toUSD(s.price)}</p>
                       <p className="text-xs text-gray-600">{s.soldAt ? new Date(s.soldAt).toLocaleString() : ""}</p>
                     </div>
                   </div>
@@ -561,7 +567,8 @@ export default function MarketPage() {
                           </div>
                         </div>
                         <div className="p-3 pt-0">
-                          <p className="text-base font-black text-yellow-400 mb-1.5">{listing.price.toLocaleString()} ₱</p>
+                          <p className="text-base font-black text-yellow-400 mb-0.5">{listing.price.toLocaleString()} ₱</p>
+                          <p className="text-xs text-gray-600 font-mono mb-1">≈ {toUSD(listing.price)}</p>
                           {listing.isMine ? (
                             <button onClick={() => cancelCaseListing(listing.id)}
                               className="w-full py-1.5 text-xs font-bold rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 border border-gray-700 hover:border-red-500/30 transition-colors">
