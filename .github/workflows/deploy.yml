@@ -14,9 +14,26 @@ jobs:
       - name: Build Docker image
         run: docker build --platform linux/amd64 -t psyko-skrubs-web:latest .
 
-      - name: Deploy
+      - name: Build Discord bot image
+        run: docker build --platform linux/amd64 -t psyko-skrubs-bot:latest ./discord-bot
+
+      - name: Deploy web app
         run: |
           docker compose \
             -p ix-psyko-skrubs-web \
             -f /mnt/.ix-apps/app_configs/psyko-skrubs-web/versions/1.0.0/templates/rendered/docker-compose.yaml \
             up -d --force-recreate
+
+      - name: Deploy Discord bot
+        run: |
+          docker stop psyko-bot 2>/dev/null || true
+          docker rm psyko-bot 2>/dev/null || true
+          docker run -d \
+            --name psyko-bot \
+            --restart unless-stopped \
+            -e DISCORD_TOKEN="${{ secrets.DISCORD_TOKEN }}" \
+            -e DISCORD_CLIENT_ID="${{ secrets.DISCORD_CLIENT_ID }}" \
+            -e DISCORD_GUILD_ID="${{ secrets.DISCORD_GUILD_ID }}" \
+            -e BOT_SECRET="${{ secrets.BOT_SECRET }}" \
+            -e SITE_URL="https://cs.psykostats.com" \
+            psyko-skrubs-bot:latest
