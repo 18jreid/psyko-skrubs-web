@@ -63,6 +63,7 @@ model CaseItem {
   emoji     String
   sellValue Int
   weight    Int
+  imageUrl  String?
   userItems UserItem[]
   listings  MarketListing[]
 }
@@ -99,6 +100,7 @@ model CaseType {
   name        String
   description String?
   imageEmoji  String              @default("📦")
+  imageUrl    String?
   price       Int
   isActive    Boolean             @default(true)
   createdAt   DateTime            @default(now())
