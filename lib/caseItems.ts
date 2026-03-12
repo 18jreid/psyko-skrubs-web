@@ -189,13 +189,14 @@ export const CASE_COST = 100;
 // Value differences come entirely from the quality of items inside each case.
 export interface CaseDropProfile {
   tiers: Partial<Record<CaseItemDef["rarity"], number>>;
+  marketName: string;
 }
 
 export const CASE_DROP_PROFILES: Record<string, CaseDropProfile> = {
-  psyko_case_v1:       { tiers: { ...CS2_TIER_WEIGHTS } },
-  psyko_restricted_v1: { tiers: { ...CS2_TIER_WEIGHTS } },
-  psyko_classified_v1: { tiers: { ...CS2_TIER_WEIGHTS } },
-  psyko_elite_v1:      { tiers: { ...CS2_TIER_WEIGHTS } },
+  psyko_case_v1:       { tiers: { ...CS2_TIER_WEIGHTS }, marketName: "Chroma Case" },
+  psyko_restricted_v1: { tiers: { ...CS2_TIER_WEIGHTS }, marketName: "Revolution Case" },
+  psyko_classified_v1: { tiers: { ...CS2_TIER_WEIGHTS }, marketName: "Recoil Case" },
+  psyko_elite_v1:      { tiers: { ...CS2_TIER_WEIGHTS }, marketName: "Kilowatt Case" },
 };
 
 /** Items eligible for a given purchasable case type. */

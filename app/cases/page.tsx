@@ -73,6 +73,7 @@ export default function CasesPage() {
   const [tab, setTab] = useState<"open" | "shop" | "mycases" | "stash" | "recent">("open");
   const [balance, setBalance] = useState<number | null>(null);
   const [imageMap, setImageMap] = useState<Record<string, string | null>>({});
+  const [caseImageMap, setCaseImageMap] = useState<Record<string, string | null>>({});
 
   // Open tab
   const [spinning, setSpinning] = useState(false);
@@ -106,6 +107,7 @@ export default function CasesPage() {
   useEffect(() => {
     fetch("/api/cases/balance").then(r => r.json()).then(d => { if (d.balance !== null) setBalance(d.balance); });
     fetch("/api/cases/items").then(r => r.json()).then(d => setImageMap(d)).catch(() => {});
+    fetch("/api/cases/case-images").then(r => r.json()).then(d => setCaseImageMap(d)).catch(() => {});
     fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
     fetch("/api/cases/recent").then(r => r.json()).then(d => { if (Array.isArray(d)) setRecent(d); });
     fetch("/api/cases/shop").then(r => r.json()).then(d => { if (Array.isArray(d)) setShopCases(d); });
@@ -501,10 +503,14 @@ export default function CasesPage() {
                       )}
 
                       <div className="p-5 flex gap-4">
-                        {/* Emoji icon */}
-                        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-4xl shrink-0"
+                        {/* Case image */}
+                        <div className="w-20 h-16 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
                           style={{ background: "#f9731610", border: "1px solid #f9731620" }}>
-                          {ct.imageEmoji}
+                          {caseImageMap[ct.id] ? (
+                            <img src={caseImageMap[ct.id]!} alt={ct.name} width={80} height={64} className="object-contain" />
+                          ) : (
+                            <span className="text-4xl">{ct.imageEmoji}</span>
+                          )}
                         </div>
 
                         {/* Name + description + price */}
@@ -609,9 +615,13 @@ export default function CasesPage() {
                     return (
                     <div key={uc.id} className="rounded-xl border p-4 flex items-center gap-4"
                       style={{ borderColor: `${accent}33`, background: `${accent}08` }}>
-                      <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0"
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
                         style={{ background: `${accent}15`, border: `1px solid ${accent}30` }}>
-                        {uc.caseType.imageEmoji}
+                        {caseImageMap[uc.caseType.id] ? (
+                          <img src={caseImageMap[uc.caseType.id]!} alt={uc.caseType.name} width={56} height={56} className="object-contain" />
+                        ) : (
+                          <span className="text-3xl">{uc.caseType.imageEmoji}</span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-black text-white">{uc.caseType.name}</p>
@@ -755,7 +765,13 @@ export default function CasesPage() {
           <div className="bg-[#0d0d15] border border-gray-800 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-black text-white mb-4">List Case on Market</h3>
             <div className="flex items-center gap-4 mb-6 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
-              <div className="text-4xl">{listingCase.caseType.imageEmoji}</div>
+              <div className="w-12 h-12 flex items-center justify-center">
+                {caseImageMap[listingCase.caseType.id] ? (
+                  <img src={caseImageMap[listingCase.caseType.id]!} alt={listingCase.caseType.name} width={48} height={48} className="object-contain" />
+                ) : (
+                  <span className="text-4xl">{listingCase.caseType.imageEmoji}</span>
+                )}
+              </div>
               <div>
                 <p className="text-sm font-black text-white">{listingCase.caseType.name}</p>
                 <p className="text-xs text-gray-500">Shop price: {listingCase.caseType.price.toLocaleString()} ₱</p>

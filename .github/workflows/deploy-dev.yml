@@ -3,6 +3,7 @@ name: Deploy to TrueNAS (Dev)
 on:
   push:
     branches: [dev]
+  workflow_dispatch:
 
 jobs:
   deploy:

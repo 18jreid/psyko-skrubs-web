@@ -396,6 +396,14 @@ const migrations = [
     `,
   },
   {
+    name: "20260312_fix_case_type_names",
+    sql: `
+      UPDATE "CaseType" SET "name"='Revolution Case', "description"='Feb 2023 case. Gloves as rare special. Popular skins at every tier.', "imageEmoji"='🌀' WHERE "id"='psyko_restricted_v1';
+      UPDATE "CaseType" SET "name"='Recoil Case',     "description"='June 2022 case. Gloves as rare special. Home of USP-S | Printstream.', "imageEmoji"='🎯' WHERE "id"='psyko_classified_v1';
+      UPDATE "CaseType" SET "name"='Kilowatt Case',   "description"='First CS2-exclusive case. Kukri Knife as rare special.',             "imageEmoji"='⚡' WHERE "id"='psyko_elite_v1';
+    `,
+  },
+  {
     name: "20260311_add_discord_rewards",
     sql: `
       ALTER TABLE "User" ADD COLUMN "discordId" TEXT;
