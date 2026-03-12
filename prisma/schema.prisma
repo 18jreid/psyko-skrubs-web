@@ -28,11 +28,14 @@ model User {
   achievements    Achievement[]
   notifications   Notification[]
   clipVotes       ClipVote[]
-  userItems       UserItem[]
-  sellerListings  MarketListing[] @relation("SellerListings")
-  buyerPurchases  MarketListing[] @relation("BuyerPurchases")
-  voiceRewards    VoiceReward[]
-  linkCode        DiscordLinkCode?
+  userItems          UserItem[]
+  sellerListings     MarketListing[]     @relation("SellerListings")
+  buyerPurchases     MarketListing[]     @relation("BuyerPurchases")
+  voiceRewards       VoiceReward[]
+  linkCode           DiscordLinkCode?
+  userCases          UserCase[]
+  caseSellerListings CaseMarketListing[] @relation("CaseSeller")
+  caseBuyerPurchases CaseMarketListing[] @relation("CaseBuyer")
 }
 
 model DiscordLinkCode {
@@ -89,6 +92,45 @@ model MarketListing {
   buyer      User?     @relation("BuyerPurchases", fields: [buyerId], references: [id])
   userItem   UserItem  @relation(fields: [userItemId], references: [id])
   item       CaseItem  @relation(fields: [itemId], references: [id])
+}
+
+model CaseType {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  imageEmoji  String              @default("📦")
+  price       Int
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  userCases   UserCase[]
+  listings    CaseMarketListing[]
+}
+
+model UserCase {
+  id         String             @id @default(cuid())
+  userId     String
+  caseTypeId String
+  opened     Boolean            @default(false)
+  obtainedAt DateTime           @default(now())
+  user       User               @relation(fields: [userId], references: [id])
+  caseType   CaseType           @relation(fields: [caseTypeId], references: [id])
+  listing    CaseMarketListing?
+}
+
+model CaseMarketListing {
+  id         String    @id @default(cuid())
+  sellerId   String
+  userCaseId String    @unique
+  caseTypeId String
+  price      Int
+  status     String    @default("active")
+  buyerId    String?
+  createdAt  DateTime  @default(now())
+  soldAt     DateTime?
+  seller     User      @relation("CaseSeller", fields: [sellerId], references: [id])
+  buyer      User?     @relation("CaseBuyer", fields: [buyerId], references: [id])
+  userCase   UserCase  @relation(fields: [userCaseId], references: [id])
+  caseType   CaseType  @relation(fields: [caseTypeId], references: [id])
 }
 
 model GamingSession {

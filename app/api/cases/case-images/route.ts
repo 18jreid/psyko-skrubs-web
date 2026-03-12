@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { CASE_ITEMS } from "@/lib/caseItems"; // CASE_ITEMS includes all legacy + tiered items
+import { CASE_DROP_PROFILES } from "@/lib/caseItems";
 
 const CDN = "https://community.cloudflare.steamstatic.com/economy/image";
 
@@ -23,10 +23,11 @@ async function fetchSteamIcon(marketName: string): Promise<string | null> {
 }
 
 export async function GET() {
+  const entries = Object.entries(CASE_DROP_PROFILES);
   const results = await Promise.all(
-    CASE_ITEMS.map(async (item) => ({
-      id: item.id,
-      imageUrl: await fetchSteamIcon(item.marketName),
+    entries.map(async ([id, profile]) => ({
+      id,
+      imageUrl: await fetchSteamIcon(profile.marketName),
     }))
   );
 

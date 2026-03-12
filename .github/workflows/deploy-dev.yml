@@ -3,6 +3,7 @@ name: Deploy to TrueNAS (Dev)
 on:
   push:
     branches: [dev]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -23,6 +24,9 @@ jobs:
             -p ix-psyko-skrubs-web-dev \
             -f /mnt/.ix-apps/app_configs/psyko-skrubs-web-dev/versions/1.0.0/templates/rendered/docker-compose.yaml \
             up -d --force-recreate
+
+      - name: Run database migrations
+        run: docker exec ix-psyko-skrubs-web-dev-web-1 node migrate.js
 
       - name: Deploy Discord bot
         run: |
