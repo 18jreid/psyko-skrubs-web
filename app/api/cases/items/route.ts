@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { CASE_ITEMS } from "@/lib/caseItems";
+import { CASE_ITEMS } from "@/lib/caseItems"; // CASE_ITEMS includes all legacy + tiered items
 
 const CDN = "https://community.cloudflare.steamstatic.com/economy/image";
 

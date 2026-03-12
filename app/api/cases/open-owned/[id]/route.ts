@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { weightedRandom } from "@/lib/caseItems";
+import { weightedRandomForCase } from "@/lib/caseItems";
 import { randomUUID } from "crypto";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -16,14 +16,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   // Verify ownership and not already opened or listed
   const userCase = await prisma.userCase.findFirst({
     where: { id, userId: user.id, opened: false },
-    include: { listing: true },
+    include: { listing: true, caseType: true },
   });
   if (!userCase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
   if (userCase.listing?.status === "active") {
     return NextResponse.json({ error: "Case is listed on the market — cancel the listing first" }, { status: 400 });
   }
 
-  const winner = weightedRandom();
+  const winner = weightedRandomForCase(userCase.caseType.id);
 
   // Mark case as opened and create the dropped item
   const [, userItem] = await prisma.$transaction([
