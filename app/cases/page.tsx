@@ -7,10 +7,11 @@ import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCas
 // Legacy items are the first 16 entries (ms_1 … rs_2) — used by direct open tab
 const LEGACY_ITEMS = CASE_ITEMS.filter(i => !i.caseId);
 
-const ITEM_W = 132;
+const ITEM_W = 140;
+const ITEM_GAP = 4;
 const STRIP_LEN = 80;
 const LAND_IDX = 68;
-const SPIN_MS = 6000;
+const SPIN_MS = 7000;
 
 function buildStrip(winner: CaseItemDef, caseTypeId?: string): { strip: CaseItemDef[]; offset: number } {
   const strip: CaseItemDef[] = [];
@@ -77,6 +78,7 @@ export default function CasesPage() {
 
   // Open tab
   const [spinning, setSpinning] = useState(false);
+  const [revealing, setRevealing] = useState(false);
   const [strip, setStrip] = useState<CaseItemDef[]>([]);
   const [showStrip, setShowStrip] = useState(false);
   const [result, setResult] = useState<{ item: CaseItemDef; userItemId: string } | null>(null);
@@ -177,6 +179,7 @@ export default function CasesPage() {
     const { strip: newStrip, offset: landOffset } = buildStrip(item, caseTypeId);
     setStrip(newStrip);
     setShowStrip(true);
+    setRevealing(false);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -185,25 +188,30 @@ export default function CasesPage() {
         if (!el) return;
 
         const startX = cw / 2 - ITEM_W / 2;
-        const endX = -(LAND_IDX * ITEM_W) + cw / 2 - ITEM_W / 2 + landOffset;
+        const endX = -(LAND_IDX * (ITEM_W + ITEM_GAP)) + cw / 2 - ITEM_W / 2 + landOffset;
 
         el.style.transition = "none";
         el.style.transform = `translateX(${startX}px)`;
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            el.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.07, 0, 0.0, 1)`;
+            el.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.05, 0, 0.0, 1)`;
             el.style.transform = `translateX(${endX}px)`;
           });
         });
 
+        // Spin ends — brief reveal pause before showing result
         setTimeout(() => {
-          setResult({ item, userItemId });
-          setShowResult(true);
           setSpinning(false);
-          fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
-          fetch("/api/cases/recent").then(r => r.json()).then(d => { if (Array.isArray(d)) setRecent(d); });
-        }, SPIN_MS + 600);
+          setRevealing(true);
+          setTimeout(() => {
+            setRevealing(false);
+            setResult({ item, userItemId });
+            setShowResult(true);
+            fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
+            fetch("/api/cases/recent").then(r => r.json()).then(d => { if (Array.isArray(d)) setRecent(d); });
+          }, 1200);
+        }, SPIN_MS + 200);
       });
     });
   }
@@ -216,6 +224,7 @@ export default function CasesPage() {
     setSellMsg(`Sold for ${sellValue.toLocaleString()} ₱`);
     setResult(null);
     setShowStrip(false);
+    setRevealing(false);
     fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
   }
 
@@ -268,7 +277,7 @@ export default function CasesPage() {
     if (t === "mycases") fetch("/api/cases/my-cases").then(r => r.json()).then(d => { if (Array.isArray(d)) setMyCases(d); });
   }
 
-  const canOpen = balance !== null && balance >= CASE_COST && !spinning;
+  const canOpen = balance !== null && balance >= CASE_COST && !spinning && !revealing;
   const TABS = [
     { key: "open",    label: "Open Case" },
     { key: "shop",    label: "Case Shop" },
@@ -355,31 +364,52 @@ export default function CasesPage() {
 
             {showStrip && (
               <div className="relative select-none" ref={containerRef}>
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-orange-500 z-20" />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-b-[12px] border-l-transparent border-r-transparent border-b-orange-500 z-20" />
-                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-px w-0.5 bg-orange-500 z-10 pointer-events-none" />
-                <div className="overflow-hidden rounded-xl border border-gray-800 bg-[#050508]" style={{ height: 160 }}>
-                  <div ref={stripRef} className="flex gap-3 px-4 py-3 will-change-transform" style={{ width: `${STRIP_LEN * ITEM_W}px` }}>
-                    {strip.map((item, i) => (
-                      <div key={i} className="shrink-0 rounded-xl flex flex-col items-center justify-center gap-1 p-2"
-                        style={{
-                          width: 120, height: 134,
-                          background: i === LAND_IDX ? `${item.color}22` : `${item.color}0d`,
-                          borderWidth: 2, borderStyle: "solid",
-                          borderColor: i === LAND_IDX ? item.color : `${item.color}44`,
-                          boxShadow: i === LAND_IDX ? rarityGlow(item.color) : "none",
-                        }}
-                      >
-                        {imageMap[item.id] ? (
-                          <img src={imageMap[item.id]!} alt={item.name} width={90} height={68} className="object-contain" />
-                        ) : (
-                          <span className="text-3xl">{item.emoji}</span>
-                        )}
-                        <span className="text-center leading-tight font-medium" style={{ fontSize: 8, color: item.color, maxWidth: 108 }}>
-                          {item.name.split(" | ")[0]}
-                        </span>
-                      </div>
-                    ))}
+                {/* CS2-style gold triangle markers */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 z-20"
+                  style={{ borderLeft: "9px solid transparent", borderRight: "9px solid transparent", borderTop: "14px solid #f59e0b" }} />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 z-20"
+                  style={{ borderLeft: "9px solid transparent", borderRight: "9px solid transparent", borderBottom: "14px solid #f59e0b" }} />
+                {/* Center line */}
+                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-px w-px z-10 pointer-events-none"
+                  style={{ background: revealing ? strip[LAND_IDX]?.color ?? "#f59e0b" : "#f59e0b", opacity: revealing ? 1 : 0.7,
+                    boxShadow: revealing ? `0 0 12px ${strip[LAND_IDX]?.color ?? "#f59e0b"}` : "none",
+                    transition: "box-shadow 0.3s, background 0.3s" }} />
+                {/* Edge fade vignette */}
+                <div className="absolute inset-y-0 left-0 w-24 z-10 pointer-events-none rounded-l-xl"
+                  style={{ background: "linear-gradient(to right, #050508 0%, transparent 100%)" }} />
+                <div className="absolute inset-y-0 right-0 w-24 z-10 pointer-events-none rounded-r-xl"
+                  style={{ background: "linear-gradient(to left, #050508 0%, transparent 100%)" }} />
+                <div className="overflow-hidden rounded-xl border border-gray-800/80 bg-[#050508]" style={{ height: 168 }}>
+                  <div ref={stripRef} className="flex py-3 will-change-transform"
+                    style={{ width: `${STRIP_LEN * (ITEM_W + ITEM_GAP)}px`, gap: ITEM_GAP, paddingLeft: 8, paddingRight: 8 }}>
+                    {strip.map((item, i) => {
+                      const isWinner = i === LAND_IDX;
+                      return (
+                        <div key={i} className="shrink-0 flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg"
+                          style={{
+                            width: ITEM_W,
+                            height: 144,
+                            background: `${item.color}14`,
+                            borderTop: `2px solid ${item.color}`,
+                            borderLeft: "1px solid #ffffff08",
+                            borderRight: "1px solid #ffffff08",
+                            borderBottom: "1px solid #ffffff08",
+                            boxShadow: (revealing && isWinner) ? rarityGlow(item.color) : "none",
+                            transition: "box-shadow 0.4s ease-out",
+                          }}
+                        >
+                          {imageMap[item.id] ? (
+                            <img src={imageMap[item.id]!} alt={item.name} width={96} height={72} className="object-contain" />
+                          ) : (
+                            <span className="text-3xl">{item.emoji}</span>
+                          )}
+                          <span className="text-center leading-tight font-semibold truncate w-full text-center px-1"
+                            style={{ fontSize: 9, color: `${item.color}cc` }}>
+                            {item.name.split(" | ")[1]?.split(" (")[0] ?? item.name}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
