@@ -393,11 +393,11 @@ export default function CasesPage() {
                           style={{
                             width: ITEM_W,
                             height: 144,
-                            background: `${item.color}14`,
+                            background: `linear-gradient(180deg, ${item.color}28 0%, ${item.color}0a 100%)`,
                             borderTop: `2px solid ${item.color}`,
-                            borderLeft: "1px solid #ffffff08",
-                            borderRight: "1px solid #ffffff08",
-                            borderBottom: "1px solid #ffffff08",
+                            borderLeft: `1px solid ${item.color}40`,
+                            borderRight: `1px solid ${item.color}40`,
+                            borderBottom: `1px solid ${item.color}20`,
                             boxShadow: (revealing && isWinner) ? rarityGlow(item.color) : "none",
                             transition: "box-shadow 0.4s ease-out",
                           }}
@@ -407,8 +407,8 @@ export default function CasesPage() {
                           ) : (
                             <span className="text-3xl">{item.emoji}</span>
                           )}
-                          <span className="text-center leading-tight font-semibold truncate w-full text-center px-1"
-                            style={{ fontSize: 9, color: `${item.color}cc` }}>
+                          <span className="text-center leading-tight font-bold truncate w-full text-center px-1"
+                            style={{ fontSize: 9, color: item.color }}>
                             {item.name.split(" | ")[1]?.split(" (")[0] ?? item.name}
                           </span>
                         </div>
