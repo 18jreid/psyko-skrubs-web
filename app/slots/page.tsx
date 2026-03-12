@@ -1,35 +1,49 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SLOT_SYMBOLS, SLOT_PAYOUTS, VALID_BETS, getSymbol, type SlotSymbol } from "@/lib/slotSymbols";
 import { toUSD } from "@/lib/caseItems";
 
 // ── Reel geometry ──────────────────────────────────────────────────────────────
-const SYMBOL_H   = 96;   // px per symbol cell
-const VISIBLE    = 3;    // rows visible per reel
-const REEL_H     = SYMBOL_H * VISIBLE; // 288px
-const STRIP_LEN  = 44;   // total symbols in the animated strip
-const LAND_IDX   = 38;   // index where the winner lands (middle visible row)
+const SYMBOL_H  = 96;
+const VISIBLE   = 3;
+const REEL_H    = SYMBOL_H * VISIBLE;   // 288px visible window
+const STRIP_LEN = 44;
+// Winner index per direction — keeps travel distance ~equal (~3552px)
+const LAND_UP   = 38;  // scrolling up:   start Y=0,      end Y=-(37*96)=-3552
+const LAND_DOWN = 4;   // scrolling down:  start Y=-3936,  end Y=-(3*96)=-288
 
 // ── Win tier labels ────────────────────────────────────────────────────────────
-function winLabel(multiplier: number): { text: string; color: string } | null {
-  if (multiplier >= 500) return { text: "🎰 JACKPOT!! 🎰",  color: "#ffd700" };
-  if (multiplier >= 100) return { text: "💎 MEGA WIN!! 💎", color: "#67e8f9" };
-  if (multiplier >= 30)  return { text: "⭐ BIG WIN! ⭐",   color: "#f97316" };
-  if (multiplier >= 5)   return { text: "WIN!",              color: "#4ade80" };
-  if (multiplier > 0)    return { text: "Almost…",           color: "#6b7280" };
+function winLabel(mult: number): { text: string; color: string } | null {
+  if (mult >= 500) return { text: "🎰 JACKPOT!! 🎰",  color: "#ffd700" };
+  if (mult >= 100) return { text: "💎 MEGA WIN!! 💎", color: "#67e8f9" };
+  if (mult >= 30)  return { text: "⭐ BIG WIN! ⭐",   color: "#f97316" };
+  if (mult >= 5)   return { text: "WIN!",              color: "#4ade80" };
+  if (mult > 0)    return { text: "Almost…",           color: "#6b7280" };
   return null;
 }
 
-// ── Single symbol cell ─────────────────────────────────────────────────────────
-function SymbolCell({ sym, dim = false }: { sym: SlotSymbol; dim?: boolean }) {
+// ── Build strip with winner placed at the correct index for the direction ──────
+function buildStrip(winnerId: string, direction: "up" | "down"): SlotSymbol[] {
+  const landIdx = direction === "up" ? LAND_UP : LAND_DOWN;
+  const rand = () => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+  return Array.from({ length: STRIP_LEN }, (_, i) =>
+    i === landIdx ? getSymbol(winnerId) : rand()
+  );
+}
+
+// ── Symbol cell ────────────────────────────────────────────────────────────────
+function SymbolCell({ sym }: { sym: SlotSymbol }) {
   return (
     <div className="flex flex-col items-center justify-center select-none"
-      style={{ height: SYMBOL_H, opacity: dim ? 0.35 : 1, transition: "opacity 0.3s" }}>
+      style={{ height: SYMBOL_H }}>
       {sym.isText ? (
         <span className="font-black leading-none"
-          style={{ fontSize: sym.id === "seven" ? 52 : 28, color: sym.color,
-            textShadow: `0 0 20px ${sym.color}88, 0 0 40px ${sym.color}44` }}>
+          style={{
+            fontSize: sym.id === "seven" ? 52 : 28,
+            color: sym.color,
+            textShadow: `0 0 20px ${sym.color}88, 0 0 40px ${sym.color}44`,
+          }}>
           {sym.display}
         </span>
       ) : (
@@ -37,74 +51,57 @@ function SymbolCell({ sym, dim = false }: { sym: SlotSymbol; dim?: boolean }) {
           {sym.display}
         </span>
       )}
-      <span className="text-xs font-bold tracking-widest uppercase mt-1"
-        style={{ color: `${sym.color}99`, fontSize: 9 }}>
+      <span className="font-bold uppercase tracking-widest mt-1"
+        style={{ fontSize: 9, color: `${sym.color}99` }}>
         {sym.label}
       </span>
     </div>
   );
 }
 
-// ── Build a reel strip: random symbols with winner placed at LAND_IDX ─────────
-function buildStrip(winnerId: string): SlotSymbol[] {
-  const all = SLOT_SYMBOLS;
-  const rand = () => all[Math.floor(Math.random() * all.length)];
-  return Array.from({ length: STRIP_LEN }, (_, i) =>
-    i === LAND_IDX ? getSymbol(winnerId) : rand()
-  );
-}
-
-// ── A single animated reel ─────────────────────────────────────────────────────
+// ── Reel — remounted each spin via key, animates once on mount ────────────────
 function Reel({
   strip,
-  spinning,
-  stopped,
-  stopDelay,
+  direction,
+  duration,
   onStopped,
   winColor,
 }: {
   strip: SlotSymbol[];
-  spinning: boolean;
-  stopped: boolean;
-  stopDelay: number;
+  direction: "up" | "down";
+  duration: number;
   onStopped: () => void;
   winColor: string | null;
 }) {
   const innerRef = useRef<HTMLDivElement>(null);
-  const stoppedRef = useRef(false);
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     const el = innerRef.current;
     if (!el) return;
 
-    if (!spinning) {
-      // Reset to top for next spin
-      el.style.transition = "none";
-      el.style.transform = "translateY(0)";
-      stoppedRef.current = false;
-      return;
-    }
+    const landIdx  = direction === "up" ? LAND_UP : LAND_DOWN;
+    // Translate so landIdx symbol sits in the MIDDLE (row 1) of the 3-row window
+    const endY     = -(landIdx - 1) * SYMBOL_H;
+    const startY   = direction === "up"
+      ? 0                                      // top of strip
+      : -(STRIP_LEN - VISIBLE) * SYMBOL_H;    // bottom of strip
 
-    // Start animation: no transition initially, position at 0
+    // 1. Snap to start without any transition
     el.style.transition = "none";
-    el.style.transform = "translateY(0)";
+    el.style.transform  = `translateY(${startY}px)`;
 
-    // Target: LAND_IDX symbol in the MIDDLE (index 1) of the 3 visible rows
-    // Middle row starts at 1 * SYMBOL_H from top of window
-    // LAND_IDX symbol starts at LAND_IDX * SYMBOL_H from top of strip
-    // translateY = -(LAND_IDX - 1) * SYMBOL_H
-    const targetY = -(LAND_IDX - 1) * SYMBOL_H;
+    // 2. Force reflow so browser commits the snap before we set the transition
+    void el.getBoundingClientRect();
 
-    const timer = setTimeout(() => {
-      if (!innerRef.current || stoppedRef.current) return;
-      stoppedRef.current = true;
-      innerRef.current.style.transition = `transform 1600ms cubic-bezier(0.08, 0.92, 0.28, 1)`;
-      innerRef.current.style.transform = `translateY(${targetY}px)`;
-      setTimeout(onStopped, 1650);
-    }, stopDelay);
+    // 3. Apply transition to final position
+    el.style.transition = `transform ${duration}ms cubic-bezier(0.08, 0.92, 0.28, 1)`;
+    el.style.transform  = `translateY(${endY}px)`;
 
-    return () => clearTimeout(timer);
-  }, [spinning, stopDelay, onStopped]);
+    const t = setTimeout(() => { setDone(true); onStopped(); }, duration + 50);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // runs once on mount
 
   return (
     <div className="relative overflow-hidden rounded-lg"
@@ -116,23 +113,22 @@ function Reel({
           : "inset 0 0 0 1px #ffffff10",
         transition: "box-shadow 0.5s",
       }}>
-      {/* Top fade */}
-      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
-        style={{ height: SYMBOL_H * 0.6, background: "linear-gradient(to bottom, #06060e, transparent)" }} />
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
-        style={{ height: SYMBOL_H * 0.6, background: "linear-gradient(to top, #06060e, transparent)" }} />
 
-      {/* Spinning blur overlay */}
-      {spinning && !stopped && (
-        <div className="absolute inset-0 z-20 pointer-events-none"
-          style={{ backdropFilter: "blur(1px)", opacity: stopped ? 0 : 0.4, transition: "opacity 0.5s" }} />
+      {/* Top/bottom fades */}
+      <div className="absolute inset-x-0 top-0 z-10 pointer-events-none"
+        style={{ height: SYMBOL_H * 0.65, background: "linear-gradient(to bottom, #06060e, transparent)" }} />
+      <div className="absolute inset-x-0 bottom-0 z-10 pointer-events-none"
+        style={{ height: SYMBOL_H * 0.65, background: "linear-gradient(to top, #06060e, transparent)" }} />
+
+      {/* Direction arrow indicator */}
+      {!done && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20 text-gray-700 text-xs pointer-events-none">
+          {direction === "up" ? "▲" : "▼"}
+        </div>
       )}
 
       <div ref={innerRef} style={{ willChange: "transform" }}>
-        {strip.map((sym, i) => (
-          <SymbolCell key={i} sym={sym} dim={stopped && Math.abs(i - LAND_IDX) > 1} />
-        ))}
+        {strip.map((sym, i) => <SymbolCell key={i} sym={sym} />)}
       </div>
     </div>
   );
@@ -144,7 +140,7 @@ function PayRow({ sym, three, two }: { sym: SlotSymbol; three: number; two?: num
     <div className="flex items-center gap-3 py-2 px-3 rounded-lg"
       style={{ background: `${sym.color}0a`, borderLeft: `2px solid ${sym.color}60` }}>
       <div className="flex gap-0.5 shrink-0">
-        {[0,1,2].map(i => (
+        {[0, 1, 2].map(i => (
           <div key={i} className="w-7 h-7 rounded flex items-center justify-center"
             style={{ background: `${sym.color}18`, border: `1px solid ${sym.color}30` }}>
             {sym.isText ? (
@@ -163,22 +159,18 @@ function PayRow({ sym, three, two }: { sym: SlotSymbol; three: number; two?: num
       </div>
       <div className="text-right shrink-0">
         <span className="text-sm font-black text-yellow-400">{three}×</span>
-        {two !== undefined && (
-          <span className="text-xs text-gray-500 ml-2">({two}× pair)</span>
-        )}
+        {two !== undefined && <span className="text-xs text-gray-500 ml-2">({two}× pair)</span>}
       </div>
     </div>
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────────
-export default function SlotsPage() {
-  const [balance, setBalance] = useState<number | null>(null);
-  const [bet, setBet] = useState<number>(50);
-  const [spinning, setSpinning] = useState(false);
-  const [strips, setStrips] = useState<SlotSymbol[][]>([[], [], []]);
-  const [stoppedReels, setStoppedReels] = useState([false, false, false]);
-  const [winResult, setWinResult] = useState<{
+// ── Page ───────────────────────────────────────────────────────────────────────
+type SpinState = {
+  strips: SlotSymbol[][];
+  directions: ("up" | "down")[];
+  durations: number[];
+  result: {
     reels: [string, string, string];
     multiplier: number;
     winType: string | null;
@@ -186,12 +178,20 @@ export default function SlotsPage() {
     delta: number;
     bet: number;
     balance: number;
-  } | null>(null);
-  const [winColors, setWinColors] = useState<[string | null, string | null, string | null]>([null, null, null]);
-  const [error, setError] = useState<string | null>(null);
+  };
+};
+
+export default function SlotsPage() {
+  const [balance, setBalance]       = useState<number | null>(null);
+  const [bet, setBet]               = useState(50);
+  const [spinKey, setSpinKey]       = useState(0);   // increment → remounts reels
+  const [spinState, setSpinState]   = useState<SpinState | null>(null);
+  const [stoppedCount, setStoppedCount] = useState(0);
+  const [winColors, setWinColors]   = useState<(string | null)[]>([null, null, null]);
+  const [showResult, setShowResult] = useState(false);
+  const [error, setError]           = useState<string | null>(null);
   const [showPaytable, setShowPaytable] = useState(false);
-  const pendingResult = useRef<typeof winResult>(null);
-  const stoppedCount = useRef(0);
+  const isSpinning = spinState !== null && stoppedCount < 3;
 
   useEffect(() => {
     fetch("/api/cases/balance").then(r => r.json()).then(d => {
@@ -199,51 +199,32 @@ export default function SlotsPage() {
     });
   }, []);
 
-  const handleAllStopped = useCallback(() => {
-    const result = pendingResult.current;
-    if (!result) return;
-    setWinResult(result);
-    setBalance(prev => prev === null ? null : prev + result.delta);
+  // When all 3 reels stop, reveal result
+  useEffect(() => {
+    if (!spinState || stoppedCount < 3) return;
+    const { result } = spinState;
 
-    // Highlight winning reels
+    setBalance(result.balance);
+    setShowResult(true);
+
     if (result.multiplier > 0) {
-      const winType = result.winType ?? "";
-      const isTwoOfAKind = winType.startsWith("pair-");
-      const symId = winType.replace("triple-", "").replace("pair-", "").replace("cherry", "cherry");
-      const sym = getSymbol(symId === "cherry" ? "cherry" : symId);
-      const cols: [string | null, string | null, string | null] = [
-        sym.color,
-        sym.color,
-        isTwoOfAKind ? null : sym.color,
-      ];
-      setWinColors(cols);
+      const wt = result.winType ?? "";
+      const isPair = wt.startsWith("pair-");
+      const sid = wt.replace("triple-", "").replace("pair-", "") || "cherry";
+      const col = getSymbol(sid).color;
+      setWinColors([col, col, isPair ? null : col]);
     }
-  }, []);
-
-  const handleReelStopped = useCallback((idx: number) => {
-    setStoppedReels(prev => {
-      const next = [...prev] as [boolean, boolean, boolean];
-      next[idx] = true;
-      return next;
-    });
-    stoppedCount.current += 1;
-    if (stoppedCount.current === 3) {
-      handleAllStopped();
-    }
-  }, [handleAllStopped]);
+  }, [stoppedCount, spinState]);
 
   const spin = async () => {
-    if (spinning) return;
+    if (isSpinning) return;
     setError(null);
-    setWinResult(null);
+    setShowResult(false);
     setWinColors([null, null, null]);
-    setSpinning(false); // force reset
+    setStoppedCount(0);
+    setSpinState(null);
 
-    // Brief reset frame before starting
-    await new Promise(r => setTimeout(r, 50));
-
-    // Call API first to get result
-    const res = await fetch("/api/slots/spin", {
+    const res  = await fetch("/api/slots/spin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bet }),
@@ -251,26 +232,27 @@ export default function SlotsPage() {
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? "Error"); return; }
 
-    // Build strips with result
-    const newStrips: SlotSymbol[][] = [
-      buildStrip(data.reels[0]),
-      buildStrip(data.reels[1]),
-      buildStrip(data.reels[2]),
-    ];
-    setStrips(newStrips);
-    setStoppedReels([false, false, false]);
-    stoppedCount.current = 0;
-    pendingResult.current = data;
-
-    // Subtract bet from local balance immediately
+    // Deduct bet locally while spinning
     setBalance(prev => prev === null ? null : prev - bet);
 
-    setSpinning(true);
+    // Randomly assign direction and duration to each reel
+    const directions = [0, 1, 2].map(() =>
+      Math.random() > 0.5 ? "up" : "down"
+    ) as ("up" | "down")[];
+
+    // Shuffle stop order: any reel can stop first/last
+    const baseDurations = [2000, 2800, 3600];
+    const shuffled      = [...baseDurations].sort(() => Math.random() - 0.5);
+
+    const strips = directions.map((dir, i) => buildStrip(data.reels[i], dir));
+
+    setSpinState({ strips, directions, durations: shuffled, result: data });
+    setSpinKey(k => k + 1);
   };
 
-  const isSpinning = spinning && !stoppedReels.every(Boolean);
-  const canSpin = !isSpinning && (balance === null || balance >= bet);
-  const label = winResult ? winLabel(winResult.multiplier) : null;
+  const result = showResult ? spinState?.result ?? null : null;
+  const label  = result ? winLabel(result.multiplier) : null;
+  const canSpin = !isSpinning && balance !== null && balance >= bet;
 
   return (
     <div className="min-h-screen px-4 py-8"
@@ -286,7 +268,7 @@ export default function SlotsPage() {
           <p className="text-gray-600 text-sm mt-1 tracking-widest uppercase">Las Vegas Style</p>
         </div>
 
-        {/* Machine cabinet */}
+        {/* Cabinet */}
         <div className="rounded-2xl overflow-hidden"
           style={{
             background: "linear-gradient(180deg, #1a1a2e 0%, #0d0d18 100%)",
@@ -322,9 +304,8 @@ export default function SlotsPage() {
             )}
           </div>
 
-          {/* Reels */}
+          {/* Reel frame */}
           <div className="px-6 pb-4">
-            {/* Reel frame */}
             <div className="rounded-xl p-4 relative"
               style={{
                 background: "linear-gradient(180deg, #050508 0%, #090914 100%)",
@@ -332,70 +313,81 @@ export default function SlotsPage() {
                 boxShadow: "inset 0 4px 20px rgba(0,0,0,0.8)",
               }}>
 
-              {/* Payline indicator arrows */}
-              <div className="absolute left-1 right-1 pointer-events-none z-10"
-                style={{ top: SYMBOL_H + 16 + (SYMBOL_H / 2) - 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div className="w-0 h-0" style={{ borderTop: "8px solid transparent", borderBottom: "8px solid transparent", borderLeft: "10px solid #f59e0b" }} />
-                <div className="w-0 h-0" style={{ borderTop: "8px solid transparent", borderBottom: "8px solid transparent", borderRight: "10px solid #f59e0b" }} />
+              {/* Payline arrows */}
+              <div className="absolute left-1 right-1 pointer-events-none z-20 flex justify-between items-center"
+                style={{ top: SYMBOL_H + 16 + SYMBOL_H / 2 - 8 }}>
+                <div className="w-0 h-0"
+                  style={{ borderTop: "8px solid transparent", borderBottom: "8px solid transparent", borderLeft: "10px solid #f59e0b" }} />
+                <div className="w-0 h-0"
+                  style={{ borderTop: "8px solid transparent", borderBottom: "8px solid transparent", borderRight: "10px solid #f59e0b" }} />
               </div>
 
-              {/* Payline line */}
-              <div className="absolute left-0 right-0 pointer-events-none z-10"
+              {/* Payline */}
+              <div className="absolute inset-x-0 pointer-events-none z-10"
                 style={{
-                  top: SYMBOL_H + 16 + (SYMBOL_H / 2),
+                  top: SYMBOL_H + 16 + SYMBOL_H / 2,
                   height: 1,
-                  background: winResult && winResult.multiplier > 0
+                  background: result && result.multiplier > 0
                     ? `linear-gradient(to right, transparent, ${label?.color ?? "#f59e0b"}, transparent)`
                     : "linear-gradient(to right, transparent, #f59e0b55, transparent)",
-                  transition: "background 0.4s",
-                  boxShadow: winResult && winResult.multiplier > 0 ? `0 0 10px ${label?.color}` : "none",
+                  boxShadow: result && result.multiplier > 0 ? `0 0 12px ${label?.color}` : "none",
+                  transition: "background 0.4s, box-shadow 0.4s",
                 }} />
 
-              {/* The 3 reels */}
+              {/* Reels */}
               <div className="flex gap-3 justify-center">
-                {[0, 1, 2].map(idx => (
+                {[0, 1, 2].map(idx => spinState ? (
                   <Reel
-                    key={idx}
-                    strip={strips[idx].length > 0 ? strips[idx] : Array.from({ length: STRIP_LEN }, () => getSymbol("orange"))}
-                    spinning={spinning}
-                    stopped={stoppedReels[idx]}
-                    stopDelay={1200 + idx * 900}
-                    onStopped={() => {
-                      handleReelStopped(idx);
-                      if (idx === 2) setSpinning(false);
-                    }}
+                    key={`${spinKey}-${idx}`}
+                    strip={spinState.strips[idx]}
+                    direction={spinState.directions[idx]}
+                    duration={spinState.durations[idx]}
+                    onStopped={() => setStoppedCount(c => c + 1)}
                     winColor={winColors[idx]}
                   />
+                ) : (
+                  /* Idle reel — shows a static placeholder */
+                  <div key={idx} className="rounded-lg flex flex-col items-center justify-center gap-0"
+                    style={{
+                      width: 130, height: REEL_H,
+                      background: "linear-gradient(180deg, #06060e 0%, #0d0d1a 50%, #06060e 100%)",
+                      boxShadow: "inset 0 0 0 1px #ffffff10",
+                    }}>
+                    {["⭐", "🎰", "💎"].map((e, i) => (
+                      <div key={i} className="flex items-center justify-center"
+                        style={{ height: SYMBOL_H, opacity: i === 1 ? 1 : 0.3, fontSize: i === 1 ? 44 : 36 }}>
+                        {e}
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Win amount display */}
-          {winResult && (
+          {/* Win / loss display */}
+          {showResult && result && (
             <div className="mx-6 mb-4 rounded-xl px-4 py-3 text-center"
               style={{
-                background: winResult.multiplier > 0 ? "#4ade8010" : "#ef444410",
-                border: `1px solid ${winResult.multiplier > 0 ? "#4ade8030" : "#ef444430"}`,
+                background: result.multiplier > 0 ? "#4ade8010" : "#ef444410",
+                border: `1px solid ${result.multiplier > 0 ? "#4ade8030" : "#ef444430"}`,
               }}>
-              {winResult.multiplier > 0 ? (
+              {result.multiplier > 0 ? (
                 <>
                   <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">You won</p>
-                  <p className="text-2xl font-black text-green-400">+{winResult.winnings.toLocaleString()} ₱</p>
-                  <p className="text-xs text-gray-600 font-mono">≈ {toUSD(winResult.winnings)} · {winResult.multiplier}× multiplier</p>
+                  <p className="text-2xl font-black text-green-400">+{result.winnings.toLocaleString()} ₱</p>
+                  <p className="text-xs text-gray-600 font-mono">≈ {toUSD(result.winnings)} · {result.multiplier}× multiplier</p>
                 </>
               ) : (
                 <>
                   <p className="text-xs text-gray-600 uppercase tracking-widest font-bold">No win</p>
-                  <p className="text-lg font-black text-red-500">-{winResult.bet.toLocaleString()} ₱</p>
+                  <p className="text-lg font-black text-red-500">-{result.bet.toLocaleString()} ₱</p>
                 </>
               )}
             </div>
           )}
 
-          {error && (
-            <p className="mx-6 mb-4 text-center text-red-400 text-sm font-bold">{error}</p>
-          )}
+          {error && <p className="mx-6 mb-4 text-center text-red-400 text-sm font-bold">{error}</p>}
 
           {/* Bet selector */}
           <div className="px-6 pb-4">
@@ -419,31 +411,31 @@ export default function SlotsPage() {
 
           {/* Spin button */}
           <div className="px-6 pb-6">
-            <button onClick={spin} disabled={!canSpin || balance === null}
+            <button onClick={spin} disabled={!canSpin}
               className="w-full py-4 rounded-xl text-xl font-black uppercase tracking-widest transition-all"
               style={{
-                background: canSpin && balance !== null
-                  ? "linear-gradient(135deg, #f97316, #ea580c)"
-                  : "#1f1f2e",
-                color: canSpin && balance !== null ? "#fff" : "#374151",
-                boxShadow: canSpin && balance !== null
-                  ? "0 0 30px #f9731640, 0 4px 20px rgba(0,0,0,0.4)"
-                  : "none",
-                transform: canSpin && !isSpinning ? "scale(1)" : "scale(0.98)",
-                cursor: canSpin && balance !== null ? "pointer" : "not-allowed",
+                background: canSpin ? "linear-gradient(135deg, #f97316, #ea580c)" : "#1f1f2e",
+                color: canSpin ? "#fff" : "#374151",
+                boxShadow: canSpin ? "0 0 30px #f9731640, 0 4px 20px rgba(0,0,0,0.4)" : "none",
+                transform: isSpinning ? "scale(0.98)" : "scale(1)",
+                cursor: canSpin ? "pointer" : "not-allowed",
               }}>
-              {balance === null ? "Sign in to play" : isSpinning ? "Spinning…" : balance < bet ? "Insufficient Balance" : "SPIN"}
+              {balance === null
+                ? "Sign in to play"
+                : isSpinning
+                ? "Spinning…"
+                : balance < bet
+                ? "Insufficient Balance"
+                : "SPIN"}
             </button>
           </div>
         </div>
 
-        {/* Paytable toggle */}
+        {/* Paytable */}
         <div className="mt-4">
           <button onClick={() => setShowPaytable(p => !p)}
             className="w-full py-2 text-xs text-gray-600 hover:text-gray-400 uppercase tracking-widest font-bold transition-colors flex items-center justify-center gap-2">
-            <span>{showPaytable ? "▲" : "▼"}</span>
-            Paytable
-            <span>{showPaytable ? "▲" : "▼"}</span>
+            <span>{showPaytable ? "▲" : "▼"}</span> Paytable <span>{showPaytable ? "▲" : "▼"}</span>
           </button>
 
           {showPaytable && (
@@ -458,7 +450,6 @@ export default function SlotsPage() {
                   if (!p) return null;
                   return <PayRow key={sym.id} sym={sym} three={p.three} two={p.two} />;
                 })}
-                {/* Cherry consolation */}
                 <div className="flex items-center gap-3 py-2 px-3 rounded-lg"
                   style={{ background: "#dc262608", borderLeft: "2px solid #dc262640" }}>
                   <div className="flex gap-1 shrink-0 items-center">
@@ -466,14 +457,9 @@ export default function SlotsPage() {
                       style={{ background: "#dc262618", border: "1px solid #dc262630" }}>
                       <span style={{ fontSize: 14 }}>🍒</span>
                     </div>
-                    <span className="text-gray-700 text-xs">+</span>
-                    <span className="text-gray-700 text-xs font-bold">any</span>
-                    <span className="text-gray-700 text-xs">+</span>
-                    <span className="text-gray-700 text-xs font-bold">any</span>
+                    <span className="text-gray-700 text-xs font-bold">+ any + any</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold" style={{ color: "#dc2626" }}>Any Cherry</span>
-                  </div>
+                  <div className="flex-1"><span className="text-xs font-bold" style={{ color: "#dc2626" }}>Any Cherry</span></div>
                   <div className="text-right shrink-0">
                     <span className="text-sm font-black text-yellow-400">0.5×</span>
                     <span className="text-xs text-gray-600 ml-1">(half back)</span>
@@ -481,9 +467,7 @@ export default function SlotsPage() {
                 </div>
               </div>
               <div className="px-4 pb-3 text-center">
-                <p className="text-xs text-gray-700">
-                  Pair = first two reels match · Any single cherry = ½ bet back
-                </p>
+                <p className="text-xs text-gray-700">Pair = first two reels match · Any single cherry = ½ bet back</p>
               </div>
             </div>
           )}
