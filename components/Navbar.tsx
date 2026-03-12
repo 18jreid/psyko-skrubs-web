@@ -17,6 +17,7 @@ const MORE_LINKS = [
   { href: "/steam", label: "Steam" },
   { href: "/cases", label: "Cases" },
   { href: "/slots", label: "Slots" },
+  { href: "/plinko", label: "Plinko" },
   { href: "/market", label: "Market" },
   { href: "/sessions", label: "Sessions" },
   { href: "/compare", label: "Compare" },
