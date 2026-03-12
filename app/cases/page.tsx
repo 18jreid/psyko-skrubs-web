@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCase, weightedRandom, weightedRandomForCase, type CaseItemDef } from "@/lib/caseItems";
+import { RARITY_LABEL, CASE_ITEMS, CASE_COST, CASE_DROP_PROFILES, getItemsForCase, weightedRandom, weightedRandomForCase, toUSD, type CaseItemDef } from "@/lib/caseItems";
 
 // Legacy items are the first 16 entries (ms_1 … rs_2) — used by direct open tab
 const LEGACY_ITEMS = CASE_ITEMS.filter(i => !i.caseId);
@@ -299,9 +299,12 @@ export default function CasesPage() {
             <p className="text-gray-500 mt-1 text-sm">Open cases, collect skins, sell for coins</p>
           </div>
           {balance !== null && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-              <span className="text-yellow-400 font-black text-xl">{balance.toLocaleString()}</span>
-              <span className="text-yellow-500 text-sm font-bold">₱</span>
+            <div className="flex flex-col items-end px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+              <div className="flex items-center gap-2">
+                <span className="text-yellow-400 font-black text-xl">{balance.toLocaleString()}</span>
+                <span className="text-yellow-500 text-sm font-bold">₱</span>
+              </div>
+              <span className="text-gray-500 text-xs font-mono">≈ {toUSD(balance)}</span>
             </div>
           )}
         </div>
@@ -430,6 +433,7 @@ export default function CasesPage() {
                   <p className="text-2xl font-black text-white leading-tight">{result.item.name}</p>
                   <p className="text-sm text-gray-400 mt-2">
                     Sell value: <span className="text-yellow-400 font-bold">{result.item.sellValue.toLocaleString()} ₱</span>
+                    <span className="text-gray-600 text-xs font-mono ml-2">≈ {toUSD(result.item.sellValue)}</span>
                   </p>
                   {result.float !== null && (
                     <p className="text-xs text-gray-600 mt-1 font-mono">
@@ -558,6 +562,7 @@ export default function CasesPage() {
                           <h3 className="text-lg font-black text-white leading-tight">{ct.name}</h3>
                           {ct.description && <p className="text-xs text-gray-500 mt-1">{ct.description}</p>}
                           <p className="text-2xl font-black text-yellow-400 mt-2">{ct.price.toLocaleString()} <span className="text-base">₱</span></p>
+                          <p className="text-xs text-gray-600 font-mono">≈ {toUSD(ct.price)}</p>
                         </div>
                       </div>
 
@@ -758,6 +763,7 @@ export default function CasesPage() {
                         <button onClick={() => sellStashItem(ui.id, ui.item.sellValue)}
                           className="px-3 py-1.5 text-xs font-bold rounded-lg border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors text-center">
                           Sell {ui.item.sellValue.toLocaleString()} ₱
+                          <span className="block text-gray-600 font-mono font-normal" style={{ fontSize: "10px" }}>≈ {toUSD(ui.item.sellValue)}</span>
                         </button>
                       </div>
                     </div>

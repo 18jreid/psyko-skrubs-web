@@ -35,6 +35,16 @@ export const RARITY_LABEL: Record<string, string> = {
   "rare-special": "★ Rare Special",
 };
 
+// ── PsykoCoin ↔ USD conversion ────────────────────────────────────────────────
+// Based on average CS2 Steam Market prices for the item tiers in our pool.
+// Chroma Mil-Spec drops (~20-25 ₱ sell) map to ~$0.20 real → 1 ₱ ≈ $0.01
+export const PSYKOCOIN_TO_USD = 0.01; // 100 ₱ = $1.00
+
+export function toUSD(coins: number): string {
+  const usd = coins * PSYKOCOIN_TO_USD;
+  return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 // ── Official CS2 drop rates (disclosed by Valve via Perfect World China, 2017)
 // All cases share the same odds — value comes from the quality of items inside.
 const CS2_TIER_WEIGHTS = {
