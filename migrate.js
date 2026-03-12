@@ -245,6 +245,50 @@ const migrations = [
     `,
   },
   {
+    name: "20260311_add_purchasable_cases",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "CaseType" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "imageEmoji" TEXT NOT NULL DEFAULT '📦',
+        "price" INTEGER NOT NULL,
+        "isActive" INTEGER NOT NULL DEFAULT 1,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "UserCase" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "caseTypeId" TEXT NOT NULL,
+        "opened" INTEGER NOT NULL DEFAULT 0,
+        "obtainedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "UserCase_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "UserCase_caseTypeId_fkey" FOREIGN KEY ("caseTypeId") REFERENCES "CaseType" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS "CaseMarketListing" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "sellerId" TEXT NOT NULL,
+        "userCaseId" TEXT NOT NULL,
+        "caseTypeId" TEXT NOT NULL,
+        "price" INTEGER NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'active',
+        "buyerId" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "soldAt" DATETIME,
+        CONSTRAINT "CaseMarketListing_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User" ("id"),
+        CONSTRAINT "CaseMarketListing_userCaseId_fkey" FOREIGN KEY ("userCaseId") REFERENCES "UserCase" ("id"),
+        CONSTRAINT "CaseMarketListing_caseTypeId_fkey" FOREIGN KEY ("caseTypeId") REFERENCES "CaseType" ("id"),
+        CONSTRAINT "CaseMarketListing_buyerId_fkey" FOREIGN KEY ("buyerId") REFERENCES "User" ("id")
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "CaseMarketListing_userCaseId_key" ON "CaseMarketListing"("userCaseId");
+
+      INSERT OR IGNORE INTO "CaseType" ("id","name","description","imageEmoji","price","isActive") VALUES
+        ('psyko_case_v1','Psyko Case','The original Psyko Skrubs case. Contains 16 exclusive skins.','📦',500,1);
+    `,
+  },
+  {
     name: "20260311_add_discord_rewards",
     sql: `
       ALTER TABLE "User" ADD COLUMN "discordId" TEXT;
