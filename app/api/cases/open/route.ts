@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { weightedRandom, CASE_COST } from "@/lib/caseItems";
+import { weightedRandom, CASE_COST, generateFloat } from "@/lib/caseItems";
 import { randomUUID } from "crypto";
 
 export async function POST() {
@@ -17,6 +17,7 @@ export async function POST() {
   }
 
   const winner = weightedRandom();
+  const float = generateFloat(winner.name);
 
   const [updated, userItem] = await prisma.$transaction([
     prisma.user.update({
@@ -24,13 +25,14 @@ export async function POST() {
       data: { balance: { decrement: CASE_COST } },
     }),
     prisma.userItem.create({
-      data: { id: randomUUID(), userId: user.id, itemId: winner.id },
+      data: { id: randomUUID(), userId: user.id, itemId: winner.id, float },
     }),
   ]);
 
   return NextResponse.json({
     item: winner,
     userItemId: userItem.id,
+    float,
     newBalance: updated.balance,
   });
 }

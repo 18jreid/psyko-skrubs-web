@@ -14,19 +14,25 @@ export interface CaseItemDef {
 
 // ── Official CS2 rarity colors ────────────────────────────────────────────────
 export const RARITY_COLOR: Record<string, string> = {
+  "consumer":     "#b0c3d9",
+  "industrial":   "#5e98d9",
   "mil-spec":     "#4b69ff",
   "restricted":   "#8847ff",
   "classified":   "#d32ce6",
   "covert":       "#eb4b4b",
+  "contraband":   "#e4ae39",
   "rare-special": "#ffd700",
 };
 
 export const RARITY_LABEL: Record<string, string> = {
+  "consumer":     "Consumer Grade",
+  "industrial":   "Industrial Grade",
   "mil-spec":     "Mil-Spec Grade",
   "restricted":   "Restricted",
   "classified":   "Classified",
   "covert":       "Covert",
-  "rare-special": "Rare Special ★",
+  "contraband":   "Contraband",
+  "rare-special": "★ Rare Special",
 };
 
 // ── Official CS2 drop rates (disclosed by Valve via Perfect World China, 2017)
@@ -183,6 +189,28 @@ export const CASE_ITEMS: CaseItemDef[] = [
 ];
 
 export const CASE_COST = 100;
+
+// ── Float generation ──────────────────────────────────────────────────────────
+export const WEAR_RANGES: Record<string, [number, number]> = {
+  "Factory New":    [0.00, 0.07],
+  "Minimal Wear":   [0.07, 0.15],
+  "Field-Tested":   [0.15, 0.38],
+  "Well-Worn":      [0.38, 0.45],
+  "Battle-Scarred": [0.45, 1.00],
+};
+
+export function getWearFromName(name: string): string {
+  for (const wear of Object.keys(WEAR_RANGES)) {
+    if (name.includes(wear)) return wear;
+  }
+  return "Field-Tested";
+}
+
+export function generateFloat(itemName: string): number {
+  const wear = getWearFromName(itemName);
+  const [min, max] = WEAR_RANGES[wear];
+  return parseFloat((Math.random() * (max - min) + min).toFixed(10));
+}
 
 // ── Per-case drop profiles ────────────────────────────────────────────────────
 // All CS2 cases share identical tier drop rates (official Valve disclosure).

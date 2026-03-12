@@ -22,6 +22,7 @@ export async function GET() {
     items.map((ui) => ({
       id: ui.id,
       obtainedAt: ui.obtainedAt.toISOString(),
+      float: ui.float ?? null,
       item: ui.item,
     }))
   );
