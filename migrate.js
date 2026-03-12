@@ -244,6 +244,32 @@ const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS "MarketListing_userItemId_key" ON "MarketListing"("userItemId");
     `,
   },
+  {
+    name: "20260311_add_discord_rewards",
+    sql: `
+      ALTER TABLE "User" ADD COLUMN "discordId" TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS "User_discordId_key" ON "User"("discordId");
+
+      CREATE TABLE IF NOT EXISTS "DiscordLinkCode" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "code" TEXT NOT NULL,
+        "expiresAt" DATETIME NOT NULL,
+        CONSTRAINT "DiscordLinkCode_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
+        UNIQUE("userId"),
+        UNIQUE("code")
+      );
+
+      CREATE TABLE IF NOT EXISTS "VoiceReward" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "coins" INTEGER NOT NULL,
+        "minutes" INTEGER NOT NULL,
+        "awardedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "VoiceReward_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+    `,
+  },
 ];
 
 for (const migration of migrations) {

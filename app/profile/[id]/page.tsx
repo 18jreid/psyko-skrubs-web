@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import ClipsSection from "./ClipsSection";
+import DiscordSection from "./DiscordSection";
 
 function eloTier(elo: number): { label: string; color: string } {
   if (elo >= 30000) return { label: "Global Elite", color: "text-cyan-300" };
@@ -44,6 +45,41 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
     getAllstarProfile(user.steamId),
     getServerSession(authOptions),
   ]);
+
+  // Discord rewards — only fetch if viewing own profile
+  const isOwnProfile = session?.user?.steamId === user.steamId;
+  let discordStatus: {
+    linked: boolean;
+    todayEarned: number;
+    dailyCap: number;
+    recentRewards: { coins: number; minutes: number; awardedAt: string }[];
+  } | null = null;
+
+  if (isOwnProfile) {
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const [todaySum, recentRewards] = await Promise.all([
+      prisma.voiceReward.aggregate({
+        where: { userId: user.id, awardedAt: { gte: todayStart } },
+        _sum: { coins: true },
+      }),
+      prisma.voiceReward.findMany({
+        where: { userId: user.id },
+        orderBy: { awardedAt: "desc" },
+        take: 10,
+      }),
+    ]);
+    discordStatus = {
+      linked: !!user.discordId,
+      todayEarned: todaySum._sum.coins ?? 0,
+      dailyCap: 500,
+      recentRewards: recentRewards.map((r) => ({
+        coins: r.coins,
+        minutes: r.minutes,
+        awardedAt: r.awardedAt.toISOString(),
+      })),
+    };
+  }
 
   const isLoggedIn = !!session;
 
@@ -158,6 +194,16 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           </section>
+        )}
+
+        {/* Discord Rewards — own profile only */}
+        {discordStatus && (
+          <DiscordSection
+            isLinked={discordStatus.linked}
+            todayEarned={discordStatus.todayEarned}
+            dailyCap={discordStatus.dailyCap}
+            recentRewards={discordStatus.recentRewards}
+          />
         )}
 
         {/* Allstar Clips */}

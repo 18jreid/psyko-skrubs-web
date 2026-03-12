@@ -15,6 +15,7 @@ model User {
   leetifyToken  String?
   cs2Elo        Int?
   balance       Int       @default(1000)
+  discordId     String?   @unique
   createdAt     DateTime  @default(now())
   clips           Clip[]
   clipLikes       ClipLike[]
@@ -30,6 +31,25 @@ model User {
   userItems       UserItem[]
   sellerListings  MarketListing[] @relation("SellerListings")
   buyerPurchases  MarketListing[] @relation("BuyerPurchases")
+  voiceRewards    VoiceReward[]
+  linkCode        DiscordLinkCode?
+}
+
+model DiscordLinkCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  code      String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model VoiceReward {
+  id        String   @id @default(cuid())
+  userId    String
+  coins     Int
+  minutes   Int
+  awardedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model CaseItem {
