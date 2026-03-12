@@ -39,12 +39,34 @@ export const RARITY_LABEL: Record<string, string> = {
 
 export const CASE_COST = 100;
 
+// Exact CS2 tier drop rates (sum = 100000 for integer precision)
+const TIER_WEIGHTS: Record<string, number> = {
+  "mil-spec":     79924,
+  "restricted":   15985,
+  "classified":    3197,
+  "covert":         639,
+  "rare-special":   255,
+};
+const TIER_TOTAL = Object.values(TIER_WEIGHTS).reduce((a, b) => a + b, 0);
+
+/**
+ * Replicates CS2's two-step drop system:
+ * 1. Roll for a rarity tier using exact CS2 percentages
+ * 2. Pick uniformly from all items within that tier
+ *
+ * This ensures tier probabilities are always exact regardless of how
+ * many items exist in each tier.
+ */
 export function weightedRandom(): CaseItemDef {
-  const total = CASE_ITEMS.reduce((s, i) => s + i.weight, 0);
-  let r = Math.random() * total;
-  for (const item of CASE_ITEMS) {
-    r -= item.weight;
-    if (r < 0) return item;
+  // Step 1: pick rarity tier
+  let r = Math.random() * TIER_TOTAL;
+  let rarity = "mil-spec";
+  for (const [tier, w] of Object.entries(TIER_WEIGHTS)) {
+    r -= w;
+    if (r < 0) { rarity = tier; break; }
   }
-  return CASE_ITEMS[CASE_ITEMS.length - 1];
+
+  // Step 2: pick uniformly from items in that tier
+  const pool = CASE_ITEMS.filter((i) => i.rarity === rarity);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
