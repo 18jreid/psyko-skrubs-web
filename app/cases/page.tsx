@@ -32,6 +32,7 @@ function rarityGlow(color: string) {
 interface UserItemEntry {
   id: string;
   obtainedAt: string;
+  float: number | null;
   item: CaseItemDef;
 }
 
@@ -81,7 +82,7 @@ export default function CasesPage() {
   const [revealing, setRevealing] = useState(false);
   const [strip, setStrip] = useState<CaseItemDef[]>([]);
   const [showStrip, setShowStrip] = useState(false);
-  const [result, setResult] = useState<{ item: CaseItemDef; userItemId: string } | null>(null);
+  const [result, setResult] = useState<{ item: CaseItemDef; userItemId: string; float: number | null } | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [sellMsg, setSellMsg] = useState<string | null>(null);
 
@@ -124,7 +125,7 @@ export default function CasesPage() {
     setResult(null);
     setSellMsg(null);
 
-    let data: { item: CaseItemDef; userItemId: string; newBalance: number } | null = null;
+    let data: { item: CaseItemDef; userItemId: string; float: number | null; newBalance: number } | null = null;
     try {
       const res = await fetch("/api/cases/open", { method: "POST" });
       if (!res.ok) {
@@ -140,7 +141,7 @@ export default function CasesPage() {
     }
 
     setBalance(data!.newBalance);
-    animateSpin(data!.item, data!.userItemId);
+    animateSpin(data!.item, data!.userItemId, undefined, data!.float);
   }
 
   // ── Open owned case ──
@@ -172,10 +173,10 @@ export default function CasesPage() {
     setShowResult(false);
     setResult(null);
     setSellMsg(null);
-    animateSpin(data!.item, data!.userItemId, caseTypeId);
+    animateSpin(data!.item, data!.userItemId, caseTypeId, data!.float ?? null);
   }
 
-  function animateSpin(item: CaseItemDef, userItemId: string, caseTypeId?: string) {
+  function animateSpin(item: CaseItemDef, userItemId: string, caseTypeId?: string, float?: number | null) {
     const { strip: newStrip, offset: landOffset } = buildStrip(item, caseTypeId);
     setStrip(newStrip);
     setShowStrip(true);
@@ -206,7 +207,7 @@ export default function CasesPage() {
           setRevealing(true);
           setTimeout(() => {
             setRevealing(false);
-            setResult({ item, userItemId });
+            setResult({ item, userItemId, float: float ?? null });
             setShowResult(true);
             fetch("/api/cases/inventory").then(r => r.json()).then(d => { if (Array.isArray(d)) setStash(d); });
             fetch("/api/cases/recent").then(r => r.json()).then(d => { if (Array.isArray(d)) setRecent(d); });
@@ -430,14 +431,23 @@ export default function CasesPage() {
                   <p className="text-sm text-gray-400 mt-2">
                     Sell value: <span className="text-yellow-400 font-bold">{result.item.sellValue.toLocaleString()} ₱</span>
                   </p>
+                  {result.float !== null && (
+                    <p className="text-xs text-gray-600 mt-1 font-mono">
+                      Float: <span className="text-gray-400">{result.float.toFixed(10)}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3 shrink-0">
                   <button onClick={() => sellItem(result.userItemId, result.item.sellValue)}
                     className="px-4 py-2 text-sm font-bold rounded-xl border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors">
                     Sell ({result.item.sellValue.toLocaleString()} ₱)
                   </button>
-                  <button onClick={() => { setShowResult(false); setShowStrip(false); }}
+                  <a href={`/stash/${result.userItemId}`}
                     className="px-4 py-2 text-sm font-bold rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+                    Inspect
+                  </a>
+                  <button onClick={() => { setShowResult(false); setShowStrip(false); }}
+                    className="px-4 py-2 text-sm font-bold rounded-xl bg-gray-700 text-gray-400 hover:bg-gray-600 transition-colors">
                     Keep
                   </button>
                 </div>
@@ -736,11 +746,20 @@ export default function CasesPage() {
                         </p>
                         <p className="text-sm font-bold text-white truncate">{ui.item.name}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{new Date(ui.obtainedAt).toLocaleDateString()}</p>
+                        {ui.float !== null && (
+                          <p className="text-xs font-mono text-gray-600 mt-0.5">{ui.float.toFixed(6)}</p>
+                        )}
                       </div>
-                      <button onClick={() => sellStashItem(ui.id, ui.item.sellValue)}
-                        className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors text-center">
-                        Sell<br />{ui.item.sellValue.toLocaleString()} ₱
-                      </button>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <a href={`/stash/${ui.id}`}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors text-center">
+                          Inspect
+                        </a>
+                        <button onClick={() => sellStashItem(ui.id, ui.item.sellValue)}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors text-center">
+                          Sell {ui.item.sellValue.toLocaleString()} ₱
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

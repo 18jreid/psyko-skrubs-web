@@ -182,7 +182,7 @@ const migrations = [
   {
     name: "20260309_add_cases",
     sql: `
-      ALTER TABLE "User" ADD COLUMN "balance" INTEGER NOT NULL DEFAULT 1000;
+      ALTER TABLE "User" ADD COLUMN "balance" INTEGER NOT NULL DEFAULT 10000;
 
       CREATE TABLE IF NOT EXISTS "CaseItem" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -394,6 +394,10 @@ const migrations = [
         ('psyko_classified_v1','Psyko Classified Case','Guaranteed Classified or better. Only the finest skins inside.', '🩷', 5000,  1),
         ('psyko_elite_v1',    'Psyko Elite Case',     'Covert and Rare Special drops only. The rarest of the rare.',    '⭐', 15000, 1);
     `,
+  },
+  {
+    name: "20260312_add_item_float",
+    sql: `ALTER TABLE "UserItem" ADD COLUMN "float" REAL;`,
   },
   {
     name: "20260312_add_image_url_cache",

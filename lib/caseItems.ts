@@ -184,6 +184,28 @@ export const CASE_ITEMS: CaseItemDef[] = [
 
 export const CASE_COST = 100;
 
+// ── Float generation ──────────────────────────────────────────────────────────
+export const WEAR_RANGES: Record<string, [number, number]> = {
+  "Factory New":    [0.00, 0.07],
+  "Minimal Wear":   [0.07, 0.15],
+  "Field-Tested":   [0.15, 0.38],
+  "Well-Worn":      [0.38, 0.45],
+  "Battle-Scarred": [0.45, 1.00],
+};
+
+export function getWearFromName(name: string): string {
+  for (const wear of Object.keys(WEAR_RANGES)) {
+    if (name.includes(wear)) return wear;
+  }
+  return "Field-Tested";
+}
+
+export function generateFloat(itemName: string): number {
+  const wear = getWearFromName(itemName);
+  const [min, max] = WEAR_RANGES[wear];
+  return parseFloat((Math.random() * (max - min) + min).toFixed(10));
+}
+
 // ── Per-case drop profiles ────────────────────────────────────────────────────
 // All CS2 cases share identical tier drop rates (official Valve disclosure).
 // Value differences come entirely from the quality of items inside each case.

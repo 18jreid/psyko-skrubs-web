@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { weightedRandomForCase } from "@/lib/caseItems";
+import { weightedRandomForCase, generateFloat } from "@/lib/caseItems";
 import { randomUUID } from "crypto";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +24,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   const winner = weightedRandomForCase(userCase.caseType.id);
+  const float = generateFloat(winner.name);
 
   // Mark case as opened and create the dropped item
   const [, userItem] = await prisma.$transaction([
@@ -32,9 +33,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       data: { opened: true },
     }),
     prisma.userItem.create({
-      data: { id: randomUUID(), userId: user.id, itemId: winner.id },
+      data: { id: randomUUID(), userId: user.id, itemId: winner.id, float },
     }),
   ]);
 
-  return NextResponse.json({ item: winner, userItemId: userItem.id });
+  return NextResponse.json({ item: winner, userItemId: userItem.id, float });
 }

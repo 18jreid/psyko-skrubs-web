@@ -14,7 +14,7 @@ model User {
   profileUrl    String
   leetifyToken  String?
   cs2Elo        Int?
-  balance       Int       @default(1000)
+  balance       Int       @default(10000)
   discordId     String?   @unique
   createdAt     DateTime  @default(now())
   clips           Clip[]
@@ -73,6 +73,7 @@ model UserItem {
   userId     String
   itemId     String
   sold       Boolean        @default(false)
+  float      Float?
   obtainedAt DateTime       @default(now())
   user       User           @relation(fields: [userId], references: [id])
   item       CaseItem       @relation(fields: [itemId], references: [id])
