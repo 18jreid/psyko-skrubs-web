@@ -7,97 +7,22 @@ import {
   type PlinkoRows, type PlinkoRisk,
 } from "@/lib/plinkoConfig";
 
-// ── Board layout ─────────────────────────────────────────────────────────────
-const SVG_W = 520;
-const MARGIN_X = 20;
+// ── SVG board layout (pixel units = Matter.js units 1:1) ─────────────────────
+const SVG_W      = 520;
+const MARGIN_X   = 20;
 const PEG_START_Y = 40;
-const BUCKET_H = 32;
+const BUCKET_H   = 36;
 const BUCKET_GAP = 2;
-const CENTER_X = SVG_W / 2;
+const CENTER_X   = SVG_W / 2;
 
 function pegSpacing(rows: PlinkoRows)  { return (SVG_W - 2 * MARGIN_X) / rows; }
 function rowHeight(rows: PlinkoRows)   { return rows === 8 ? 52 : rows === 12 ? 42 : 34; }
-function pegRadius(rows: PlinkoRows)   { return rows === 8 ? 5 : rows === 12 ? 4.5 : 4; }
-function ballRadius(rows: PlinkoRows)  { return rows === 8 ? 8 : rows === 12 ? 7 : 6; }
-function bucketTopY(rows: PlinkoRows)  { return PEG_START_Y + rows * rowHeight(rows) + 10; }
-function svgHeight(rows: PlinkoRows)   { return bucketTopY(rows) + BUCKET_H + 16; }
+function pegRadius(rows: PlinkoRows)   { return rows === 8 ? 6 : rows === 12 ? 5 : 4.5; }
+function ballRadius(rows: PlinkoRows)  { return rows === 8 ? 9 : rows === 12 ? 8 : 7; }
+function bucketTopY(rows: PlinkoRows)  { return PEG_START_Y + rows * rowHeight(rows) + 12; }
+function svgHeight(rows: PlinkoRows)   { return bucketTopY(rows) + BUCKET_H + 18; }
 
-function ballX(rights: number, r: number, rows: PlinkoRows) {
-  return CENTER_X + (rights - r / 2) * pegSpacing(rows);
-}
-
-/**
- * Produces 3*rows+2 waypoints per ball:
- *   1 entry point above board
- *   per row: approach → peg deflect → depart toward next row
- *   1 final bucket landing
- *
- * `startJitter` (±px) gives each ball a unique horizontal starting offset
- * that fades toward zero as the ball falls — makes paths visually distinct
- * even when two balls share the same L/R choices.
- */
-function computeWaypoints(
-  path: ("L" | "R")[],
-  rows: PlinkoRows,
-  startJitter: number,
-): { x: number; y: number }[] {
-  const PS = pegSpacing(rows);
-  const RH = rowHeight(rows);
-  const BY = bucketTopY(rows);
-  const pts: { x: number; y: number }[] = [];
-
-  let rights = 0;
-  pts.push({ x: CENTER_X + startJitter, y: PEG_START_Y - 25 });
-
-  for (let r = 0; r < rows; r++) {
-    const base   = ballX(rights, r, rows);
-    // Jitter fades: full spread at top, gone by bottom
-    const fade   = startJitter * Math.max(0, 1 - r / rows) * 0.55;
-    // Small random noise at each peg — purely cosmetic, doesn't change outcome
-    const noise  = (Math.random() - 0.5) * 3.5;
-    const dir    = path[r];
-    const deflect = dir === "R" ? PS * 0.14 : -PS * 0.14;
-
-    // 1. Approach peg from above
-    pts.push({ x: base + fade,                         y: PEG_START_Y + r * RH - RH * 0.28 });
-    // 2. Hit peg — deflect in bounce direction
-    pts.push({ x: base + deflect + noise,              y: PEG_START_Y + r * RH });
-
-    if (dir === "R") rights++;
-
-    // 3. Depart toward next gap
-    const nextBase = ballX(rights, r + 1, rows);
-    pts.push({ x: nextBase + fade * 0.45 + noise * 0.4, y: PEG_START_Y + r * RH + RH * 0.5 });
-  }
-
-  // Land precisely in bucket — no jitter at the end
-  pts.push({ x: CENTER_X + (rights - rows / 2) * PS, y: BY + BUCKET_H / 2 });
-  return pts;
-}
-
-/**
- * Per-step delay array: slow at the top (gravity = 0), fast at the bottom.
- * Targets: 8-row ≈ 2.0 s, 12-row ≈ 2.7 s, 16-row ≈ 3.5 s total.
- *
- * Formula: delay[i] = dMax - (dMax - dMin) * (i/n)²  (quadratic ease-in)
- * Integral ≈ n * (dMax - (dMax-dMin)/3) = n * (2dMax/3 + dMin/3) = target
- * With dMin = dMax * 0.25:  n * dMax * 0.75 = target  →  dMax = target / (n * 0.75)
- */
-function computeDelays(rows: PlinkoRows): number[] {
-  const n      = 3 * rows + 2; // waypoint count
-  const target = rows === 8 ? 2000 : rows === 12 ? 2700 : 3500;
-  const dMax   = target / (n * 0.75);
-  const dMin   = dMax * 0.25;
-  return Array.from({ length: n }, (_, i) => {
-    const t = i / Math.max(n - 1, 1);
-    return dMax - (dMax - dMin) * t * t;
-  });
-}
-
-// Fixed CSS transition — slightly under the fastest step so motion stays crisp
-const BALL_TRANSITION_MS = 58;
-
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Drop result types ─────────────────────────────────────────────────────────
 interface SingleDrop {
   path: ("L" | "R")[];
   bucketIdx: number;
@@ -114,7 +39,7 @@ interface DropResult {
   balance: number;
 }
 
-// ── PlinkoBoard ───────────────────────────────────────────────────────────────
+// ── PlinkoBoard — uses Matter.js for real physics ─────────────────────────────
 function PlinkoBoard({
   rows,
   risk,
@@ -128,124 +53,247 @@ function PlinkoBoard({
   animKey: number;
   onAnimationComplete: () => void;
 }) {
-  const mults = MULTIPLIERS[rows][risk];
+  const PS  = pegSpacing(rows);
+  const RH  = rowHeight(rows);
+  const PR  = pegRadius(rows);
+  const BR  = ballRadius(rows);
+  const BY  = bucketTopY(rows);
+  const SH  = svgHeight(rows);
+  const BW  = PS - BUCKET_GAP * 2;
+  const mults     = MULTIPLIERS[rows][risk];
   const numBuckets = rows + 1;
-  const PS = pegSpacing(rows);
-  const RH = rowHeight(rows);
-  const PR = pegRadius(rows);
-  const BR = ballRadius(rows);
-  const BY = bucketTopY(rows);
-  const SH = svgHeight(rows);
-  const bucketW = PS - BUCKET_GAP * 2;
 
-  type BallState = { x: number; y: number; visible: boolean };
-  const [balls, setBalls] = useState<BallState[]>([]);
+  // Refs for direct SVG DOM updates — bypasses React re-renders at 60 fps
+  const ballGroupRefs = useRef<(SVGGElement | null)[]>([]);
+  const engineRef     = useRef<import("matter-js").Engine | null>(null);
+  const runnerRef     = useRef<import("matter-js").Runner | null>(null);
+  const rafRef        = useRef<number | null>(null);
+
+  // React state only for slow-changing things
+  const [ballCount,  setBallCount]  = useState(0);
   const [bucketHits, setBucketHits] = useState<Record<number, number>>({});
-  const cancelRef = useRef(false);
 
   useEffect(() => {
     if (animKey === 0 || !result) return;
-    cancelRef.current = false;
 
-    // Each ball gets a unique random starting jitter (±7 px)
-    const waypointsList = result.drops.map(d =>
-      computeWaypoints(d.path, rows, (Math.random() - 0.5) * 14)
-    );
-    const delays   = computeDelays(rows);
-    const maxSteps = waypointsList[0].length; // 3*rows+2
-
-    setBalls(waypointsList.map(wp => ({ x: wp[0].x, y: wp[0].y, visible: true })));
+    setBallCount(result.drops.length);
     setBucketHits({});
 
-    let step = 1;
-    const tick = () => {
-      if (cancelRef.current) return;
-      if (step < maxSteps) {
-        setBalls(waypointsList.map(wp => ({ x: wp[step].x, y: wp[step].y, visible: true })));
-        const delay = delays[Math.min(step, delays.length - 1)];
-        step++;
-        setTimeout(tick, delay);
-      } else {
-        const hits: Record<number, number> = {};
-        for (const d of result.drops) hits[d.bucketIdx] = (hits[d.bucketIdx] ?? 0) + 1;
-        setBucketHits(hits);
-        setTimeout(onAnimationComplete, 400);
-      }
-    };
+    // Wait one frame so SVG ball elements are in the DOM
+    const setupFrame = requestAnimationFrame(async () => {
+      // Dynamic import keeps Matter.js out of the SSR bundle
+      const Matter = await import("matter-js");
+      const { Engine, Bodies, Body, World, Runner, Events } = Matter;
 
-    setTimeout(tick, delays[0]);
-    return () => { cancelRef.current = true; };
+      // ── Tear down previous simulation ──
+      if (runnerRef.current) Runner.stop(runnerRef.current);
+      if (engineRef.current) {
+        World.clear(engineRef.current.world, false);
+        Engine.clear(engineRef.current);
+      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+      // ── Build engine ──
+      // gravity.y = 0.12 px/frame² → ball takes ~3–4 s across 16 rows
+      const engine = Engine.create({ gravity: { x: 0, y: 0.12 } });
+      engineRef.current = engine;
+
+      // ── Static pegs ──
+      for (let r = 0; r < rows; r++) {
+        const n = r + 2;
+        const y = PEG_START_Y + r * RH;
+        for (let j = 0; j < n; j++) {
+          const x = CENTER_X + (j - (n - 1) / 2) * PS;
+          World.add(engine.world, Bodies.circle(x, y, PR, {
+            isStatic: true,
+            restitution: 0.55,
+            friction: 0.04,
+            label: "peg",
+          }));
+        }
+      }
+
+      // ── Walls (keep balls from leaving the board sideways) ──
+      const wallOpts = { isStatic: true, restitution: 0.3, friction: 0, label: "wall" };
+      World.add(engine.world, [
+        Bodies.rectangle(MARGIN_X - 6,       SH / 2, 12, SH * 2, wallOpts),
+        Bodies.rectangle(SVG_W - MARGIN_X + 6, SH / 2, 12, SH * 2, wallOpts),
+        // Floor just below the buckets so balls settle
+        Bodies.rectangle(CENTER_X, BY + BUCKET_H + 8, SVG_W, 16, {
+          isStatic: true, label: "floor",
+        }),
+      ]);
+
+      // ── Ball bodies ──
+      const ballBodies = result.drops.map(() => {
+        // Spread the drop position ± ¼ peg spacing for variety
+        const startX = CENTER_X + (Math.random() - 0.5) * (PS * 0.5);
+        const ball = Bodies.circle(startX, PEG_START_Y - 22, BR, {
+          restitution: 0.42,
+          friction: 0.04,
+          frictionAir: 0.009,
+          density: 0.002,
+          label: "ball",
+        });
+        // Tiny initial x nudge so each ball immediately diverges
+        Body.setVelocity(ball, { x: (Math.random() - 0.5) * 0.4, y: 0.2 });
+        return ball;
+      });
+      World.add(engine.world, ballBodies);
+
+      // ── Steering: at each row crossing, bias vx toward predetermined direction ──
+      // This ensures the ball's visual path matches the server outcome
+      // while still looking fully physical (gravity, bounces, friction are all real)
+      const ballStates = result.drops.map(() => ({
+        lastRow: -1,
+        landed: false,
+      }));
+      let allLanded      = false;
+      let completionTimer: ReturnType<typeof setTimeout> | null = null;
+
+      Events.on(engine, "afterUpdate", () => {
+        for (let i = 0; i < ballBodies.length; i++) {
+          const ball  = ballBodies[i];
+          const state = ballStates[i];
+          if (state.landed) continue;
+
+          // Only steer while moving downward
+          if (ball.velocity.y > 0) {
+            for (let r = state.lastRow + 1; r < rows; r++) {
+              const pegY = PEG_START_Y + r * RH;
+              if (ball.position.y >= pegY - RH * 0.15) {
+                state.lastRow = r;
+                const dir  = result.drops[i].path[r];
+                const sign = dir === "R" ? 1 : -1;
+                // Preserve vertical speed; bias horizontal in correct direction.
+                // A small random ε keeps the ball motion looking imperfect.
+                const ε   = Math.random() * 0.35;
+                const vx  = sign * (Math.max(Math.abs(ball.velocity.x), 0.6) + ε);
+                Body.setVelocity(ball, { x: vx, y: ball.velocity.y });
+                break; // only handle one new row per frame
+              }
+            }
+          }
+
+          // Detect landing in bucket zone
+          if (ball.position.y >= BY + BUCKET_H * 0.5 && !state.landed) {
+            state.landed = true;
+          }
+        }
+
+        if (!allLanded && ballStates.every(s => s.landed)) {
+          allLanded = true;
+          completionTimer = setTimeout(() => {
+            // Highlight the server-determined winning buckets
+            const hits: Record<number, number> = {};
+            for (const d of result.drops) hits[d.bucketIdx] = (hits[d.bucketIdx] ?? 0) + 1;
+            setBucketHits(hits);
+
+            if (runnerRef.current) Runner.stop(runnerRef.current);
+            if (rafRef.current)    cancelAnimationFrame(rafRef.current);
+
+            setTimeout(onAnimationComplete, 450);
+          }, 500); // brief settle time before showing result
+        }
+      });
+
+      // ── RAF render loop — updates SVG transforms directly, no React state ──
+      const renderLoop = () => {
+        for (let i = 0; i < ballBodies.length; i++) {
+          const { x, y } = ballBodies[i].position;
+          const el = ballGroupRefs.current[i];
+          if (el) el.setAttribute("transform", `translate(${x},${y})`);
+        }
+        rafRef.current = requestAnimationFrame(renderLoop);
+      };
+      rafRef.current = requestAnimationFrame(renderLoop);
+
+      // ── Start the physics runner ──
+      const runner = Runner.create({ delta: 1000 / 60 });
+      runnerRef.current = runner;
+      Runner.run(runner, engine);
+    });
+
+    return () => {
+      cancelAnimationFrame(setupFrame);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      // Async cleanup to avoid import on every cleanup call
+      import("matter-js").then(({ Runner, World, Engine }) => {
+        if (runnerRef.current) { Runner.stop(runnerRef.current); runnerRef.current = null; }
+        if (engineRef.current) {
+          World.clear(engineRef.current.world, false);
+          Engine.clear(engineRef.current);
+          engineRef.current = null;
+        }
+      });
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey]);
 
-  // ── Peg grid: row r → r+2 pegs ──
-  const pegs: { x: number; y: number; k: string }[] = [];
+  // ── Static peg positions for SVG rendering ────────────────────────────────
+  const svgPegs: { x: number; y: number; k: string }[] = [];
   for (let r = 0; r < rows; r++) {
     const n = r + 2;
     const y = PEG_START_Y + r * RH;
     for (let j = 0; j < n; j++) {
-      pegs.push({ x: CENTER_X + (j - (n - 1) / 2) * PS, y, k: `${r}-${j}` });
+      svgPegs.push({ x: CENTER_X + (j - (n - 1) / 2) * PS, y, k: `${r}-${j}` });
     }
   }
 
-  // ── Bucket layout ──
+  // ── Bucket layout ─────────────────────────────────────────────────────────
   const buckets = Array.from({ length: numBuckets }, (_, b) => {
-    const cx = CENTER_X + (b - (numBuckets - 1) / 2) * PS;
-    const mult = mults[b];
+    const cx   = CENTER_X + (b - (numBuckets - 1) / 2) * PS;
+    const mult  = mults[b];
     const color = bucketColor(mult);
-    const hits = bucketHits[b] ?? 0;
-    return { cx, x: cx - bucketW / 2, width: bucketW, mult, color, hits };
+    const hits  = bucketHits[b] ?? 0;
+    return { cx, x: cx - BW / 2, width: BW, mult, color, hits };
   });
 
-  const fs  = PS < 32 ? 8 : PS < 45 ? 9 : 10;
+  const fs = PS < 32 ? 8 : PS < 45 ? 9 : 10;
 
   return (
     <svg viewBox={`0 0 ${SVG_W} ${SH}`} width="100%" style={{ display: "block" }}>
       <rect width={SVG_W} height={SH} fill="#05050c" rx={10} />
 
       {/* Pegs */}
-      {pegs.map(({ x, y, k }) => (
-        <circle key={k} cx={x} cy={y} r={PR} fill="#e2e8f030" stroke="#e2e8f018" strokeWidth={1} />
+      {svgPegs.map(({ x, y, k }) => (
+        <circle key={k} cx={x} cy={y} r={PR}
+          fill="#e2e8f033" stroke="#e2e8f018" strokeWidth={1} />
       ))}
 
       {/* Buckets */}
       {buckets.map(({ cx, x, width, mult, color, hits }, b) => {
-        const isActive = hits > 0;
+        const active = hits > 0;
         return (
           <g key={b}>
             <rect
               x={x} y={BY} width={width} height={BUCKET_H} rx={3}
-              fill={isActive ? color : `${color}22`}
-              stroke={isActive ? color : `${color}77`}
-              strokeWidth={isActive ? 2 : 1}
+              fill={active ? color : `${color}22`}
+              stroke={active ? color : `${color}77`}
+              strokeWidth={active ? 2 : 1}
               style={{ transition: "fill 0.3s, stroke-width 0.3s" }}
             />
-            {/* Glow outline on active bucket */}
-            {isActive && (
+            {active && (
               <rect
                 x={x - 1} y={BY - 1} width={width + 2} height={BUCKET_H + 2} rx={4}
-                fill="none" stroke={color} strokeWidth={2} opacity={0.45}
+                fill="none" stroke={color} strokeWidth={2} opacity={0.5}
                 style={{ filter: `drop-shadow(0 0 6px ${color})` }}
               />
             )}
-            {/* Multiplier label */}
             <text
               x={cx} y={BY + BUCKET_H / 2 + 4}
               textAnchor="middle"
-              fill={isActive ? (mult >= 1.5 ? "#000" : "#fff") : color}
+              fill={active ? (mult >= 1.5 ? "#000" : "#fff") : color}
               fontSize={fs} fontWeight="bold" fontFamily="monospace"
               style={{ transition: "fill 0.3s" }}
             >
               {formatMult(mult)}
             </text>
-            {/* Ball-count badge when multiple balls land in same bucket */}
             {hits > 1 && (
               <g>
                 <circle cx={x + width - 1} cy={BY + 1} r={7} fill="#f97316" />
-                <text
-                  x={x + width - 1} y={BY + 5}
-                  textAnchor="middle" fill="#fff" fontSize={8} fontWeight="bold"
-                >
+                <text x={x + width - 1} y={BY + 5}
+                  textAnchor="middle" fill="#fff" fontSize={8} fontWeight="bold">
                   {hits}
                 </text>
               </g>
@@ -254,29 +302,25 @@ function PlinkoBoard({
         );
       })}
 
-      {/* Animated balls — all advance together each step */}
-      {balls.map((b, i) =>
-        b.visible ? (
-          <g
-            key={i}
-            style={{
-              transform: `translate(${b.x}px, ${b.y}px)`,
-              transition: `transform ${BALL_TRANSITION_MS}ms ease-in-out`,
-            }}
-          >
-            <circle
-              cx={0} cy={0} r={BR}
-              fill="#f97316" stroke="#fed7aa" strokeWidth={1.5}
-              style={{ filter: "drop-shadow(0 0 7px #f97316aa)" }}
-            />
-          </g>
-        ) : null
-      )}
+      {/* Ball elements — positions written directly via DOM refs, not React state */}
+      {Array.from({ length: ballCount }, (_, i) => (
+        <g
+          key={i}
+          ref={el => { ballGroupRefs.current[i] = el; }}
+          transform={`translate(${CENTER_X},${PEG_START_Y - 22})`}
+        >
+          <circle
+            cx={0} cy={0} r={BR}
+            fill="#f97316" stroke="#fed7aa" strokeWidth={1.5}
+            style={{ filter: "drop-shadow(0 0 8px #f97316aa)" }}
+          />
+        </g>
+      ))}
     </svg>
   );
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── UI constants ──────────────────────────────────────────────────────────────
 const RISK_COLOR: Record<PlinkoRisk, string> = {
   low: "#22c55e",
   medium: "#f59e0b",
@@ -287,16 +331,16 @@ type ValidCount = (typeof VALID_COUNTS)[number];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PlinkoPage() {
-  const [balance, setBalance] = useState<number | null>(null);
-  const [rows, setRows]       = useState<PlinkoRows>(16);
-  const [risk, setRisk]       = useState<PlinkoRisk>("medium");
-  const [bet, setBet]         = useState(50);
+  const [balance,  setBalance]  = useState<number | null>(null);
+  const [rows,     setRows]     = useState<PlinkoRows>(16);
+  const [risk,     setRisk]     = useState<PlinkoRisk>("medium");
+  const [bet,      setBet]      = useState(50);
   const [numBalls, setNumBalls] = useState<ValidCount>(1);
   const [isDropping, setIsDropping] = useState(false);
-  const [animKey, setAnimKey] = useState(0);
-  const [result, setResult]   = useState<DropResult | null>(null);
+  const [animKey,  setAnimKey]  = useState(0);
+  const [result,   setResult]   = useState<DropResult | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error,    setError]    = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/cases/balance")
@@ -325,7 +369,6 @@ export default function PlinkoPage() {
       return;
     }
 
-    // Deduct total bet optimistically while balls animate
     setBalance(prev => prev === null ? null : prev - totalBet);
     setResult(data);
     setAnimKey(k => k + 1);
@@ -337,8 +380,8 @@ export default function PlinkoPage() {
     setIsDropping(false);
   };
 
-  const canDrop = !isDropping && balance !== null && balance >= totalBet;
-  const maxMult = MULTIPLIERS[rows][risk][0];
+  const canDrop  = !isDropping && balance !== null && balance >= totalBet;
+  const maxMult  = MULTIPLIERS[rows][risk][0];
 
   return (
     <div
@@ -390,17 +433,14 @@ export default function PlinkoPage() {
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Rows</p>
               <div className="flex gap-2">
                 {([8, 12, 16] as PlinkoRows[]).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => { if (!isDropping) setRows(r); }}
+                  <button key={r} onClick={() => { if (!isDropping) setRows(r); }}
                     className="px-4 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: rows === r ? "#f97316" : "#ffffff08",
                       color: rows === r ? "#fff" : "#6b7280",
                       border: rows === r ? "1px solid #f97316" : "1px solid #ffffff10",
                       boxShadow: rows === r ? "0 0 12px #f9731640" : "none",
-                    }}
-                  >
+                    }}>
                     {r}
                   </button>
                 ))}
@@ -414,17 +454,14 @@ export default function PlinkoPage() {
                 {(["low", "medium", "high"] as PlinkoRisk[]).map(r => {
                   const color = RISK_COLOR[r];
                   return (
-                    <button
-                      key={r}
-                      onClick={() => { if (!isDropping) setRisk(r); }}
+                    <button key={r} onClick={() => { if (!isDropping) setRisk(r); }}
                       className="px-4 py-1.5 rounded-lg text-sm font-black capitalize transition-all"
                       style={{
                         background: risk === r ? color : "#ffffff08",
                         color: risk === r ? "#fff" : "#6b7280",
                         border: risk === r ? `1px solid ${color}` : "1px solid #ffffff10",
                         boxShadow: risk === r ? `0 0 12px ${color}50` : "none",
-                      }}
-                    >
+                      }}>
                       {r}
                     </button>
                   );
@@ -437,17 +474,14 @@ export default function PlinkoPage() {
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Balls</p>
               <div className="flex gap-2">
                 {VALID_COUNTS.map(n => (
-                  <button
-                    key={n}
-                    onClick={() => { if (!isDropping) setNumBalls(n); }}
+                  <button key={n} onClick={() => { if (!isDropping) setNumBalls(n); }}
                     className="px-4 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: numBalls === n ? "#a855f7" : "#ffffff08",
                       color: numBalls === n ? "#fff" : "#6b7280",
                       border: numBalls === n ? "1px solid #a855f7" : "1px solid #ffffff10",
                       boxShadow: numBalls === n ? "0 0 12px #a855f750" : "none",
-                    }}
-                  >
+                    }}>
                     {n}
                   </button>
                 ))}
@@ -459,37 +493,30 @@ export default function PlinkoPage() {
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Bet Per Ball</p>
               <div className="flex gap-2 flex-wrap">
                 {VALID_BETS.map(b => (
-                  <button
-                    key={b}
-                    onClick={() => { if (!isDropping) setBet(b); }}
+                  <button key={b} onClick={() => { if (!isDropping) setBet(b); }}
                     className="px-3 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: bet === b ? "#f97316" : "#ffffff08",
                       color: bet === b ? "#fff" : "#6b7280",
                       border: bet === b ? "1px solid #f97316" : "1px solid #ffffff10",
                       boxShadow: bet === b ? "0 0 12px #f9731640" : "none",
-                    }}
-                  >
+                    }}>
                     {b.toLocaleString()}
                   </button>
                 ))}
               </div>
               <p className="text-xs text-gray-700 font-mono mt-1.5">
                 Total:{" "}
-                <span className="text-gray-500 font-black">
-                  {totalBet.toLocaleString()} ₱
-                </span>
+                <span className="text-gray-500 font-black">{totalBet.toLocaleString()} ₱</span>
                 {numBalls > 1 && (
-                  <span className="text-gray-700 ml-1">
-                    ({numBalls} × {bet.toLocaleString()} ₱)
-                  </span>
+                  <span className="text-gray-700 ml-1">({numBalls} × {bet.toLocaleString()} ₱)</span>
                 )}
                 <span className="ml-1">≈ {toUSD(totalBet)}</span>
               </p>
             </div>
           </div>
 
-          {/* Board — remount when rows change to reset peg layout */}
+          {/* Board — remount on row change resets engine */}
           <div className="px-3 py-4">
             <PlinkoBoard
               key={rows}
@@ -513,38 +540,25 @@ export default function PlinkoPage() {
               {result.totalDelta >= 0 ? (
                 <>
                   <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">You won</p>
-                  <p className="text-2xl font-black text-green-400">
-                    +{result.totalWinnings.toLocaleString()} ₱
-                  </p>
-                  <p className="text-xs text-gray-600 font-mono">
-                    ≈ {toUSD(result.totalWinnings)}
-                    {numBalls > 1 && (
-                      <span className="ml-2 text-gray-700">
-                        across {numBalls} balls · avg {(result.totalWinnings / numBalls).toFixed(0)} ₱
-                      </span>
-                    )}
+                  <p className="text-2xl font-black text-green-400">+{result.totalWinnings.toLocaleString()} ₱</p>
+                  <p className="text-xs text-gray-600 font-mono">≈ {toUSD(result.totalWinnings)}
+                    {numBalls > 1 && <span className="ml-2 text-gray-700">across {numBalls} balls · avg {(result.totalWinnings / numBalls).toFixed(0)} ₱</span>}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-xs text-gray-600 uppercase tracking-widest font-bold">Lost</p>
-                  <p className="text-lg font-black text-red-500">
-                    −{result.totalBet.toLocaleString()} ₱
-                  </p>
+                  <p className="text-lg font-black text-red-500">−{result.totalBet.toLocaleString()} ₱</p>
                   <p className="text-xs text-gray-600 font-mono">≈ {toUSD(result.totalBet)}</p>
                 </>
               )}
-              {/* Per-ball breakdown for multi-ball */}
               {numBalls > 1 && (
                 <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
                   {result.drops.map((d, i) => {
                     const color = bucketColor(d.multiplier);
                     return (
-                      <div
-                        key={i}
-                        className="px-2 py-0.5 rounded text-xs font-black font-mono"
-                        style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}
-                      >
+                      <div key={i} className="px-2 py-0.5 rounded text-xs font-black font-mono"
+                        style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}>
                         {formatMult(d.multiplier)}
                       </div>
                     );
@@ -554,9 +568,7 @@ export default function PlinkoPage() {
             </div>
           )}
 
-          {error && (
-            <p className="mx-6 mb-4 text-center text-red-400 text-sm font-bold">{error}</p>
-          )}
+          {error && <p className="mx-6 mb-4 text-center text-red-400 text-sm font-bold">{error}</p>}
 
           {/* Drop button */}
           <div className="px-6 pb-6">
@@ -577,18 +589,13 @@ export default function PlinkoPage() {
                 ? "Dropping…"
                 : balance < totalBet
                 ? "Insufficient Balance"
-                : numBalls === 1
-                ? "DROP BALL"
-                : `DROP ${numBalls} BALLS`}
+                : numBalls === 1 ? "DROP BALL" : `DROP ${numBalls} BALLS`}
             </button>
           </div>
         </div>
 
-        {/* Multiplier reference table */}
-        <div
-          className="mt-4 rounded-2xl overflow-hidden"
-          style={{ background: "#0d0d18", border: "1px solid #ffffff08" }}
-        >
+        {/* Multiplier reference */}
+        <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "#0d0d18", border: "1px solid #ffffff08" }}>
           <div className="px-4 py-3 border-b border-white/5 text-center">
             <p className="text-xs text-gray-600 uppercase tracking-widest font-bold">
               Bucket Multipliers — {rows} rows ·{" "}
@@ -599,11 +606,8 @@ export default function PlinkoPage() {
             {MULTIPLIERS[rows][risk].map((mult, i) => {
               const color = bucketColor(mult);
               return (
-                <div
-                  key={i}
-                  className="px-2 py-1 rounded text-xs font-black font-mono"
-                  style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}
-                >
+                <div key={i} className="px-2 py-1 rounded text-xs font-black font-mono"
+                  style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}>
                   {formatMult(mult)}
                 </div>
               );
