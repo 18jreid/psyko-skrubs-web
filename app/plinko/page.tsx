@@ -94,8 +94,8 @@ function PlinkoBoard({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
       // ── Build engine ──
-      // gravity.y = 0.12 px/frame² → ball takes ~3–4 s across 16 rows
-      const engine = Engine.create({ gravity: { x: 0, y: 0.12 } });
+      // gravity.y = 0.3: ball reaches each peg with ~4–5 px/frame vy → ~3 s total
+      const engine = Engine.create({ gravity: { x: 0, y: 0.3 } });
       engineRef.current = engine;
 
       // ── Static pegs ──
@@ -106,19 +106,18 @@ function PlinkoBoard({
           const x = CENTER_X + (j - (n - 1) / 2) * PS;
           World.add(engine.world, Bodies.circle(x, y, PR, {
             isStatic: true,
-            restitution: 0.55,
-            friction: 0.04,
+            restitution: 0.25, // low bounce keeps balls moving downward
+            friction: 0.02,
             label: "peg",
           }));
         }
       }
 
-      // ── Walls (keep balls from leaving the board sideways) ──
-      const wallOpts = { isStatic: true, restitution: 0.3, friction: 0, label: "wall" };
+      // ── Walls ──
+      const wallOpts = { isStatic: true, restitution: 0.1, friction: 0, label: "wall" };
       World.add(engine.world, [
-        Bodies.rectangle(MARGIN_X - 6,       SH / 2, 12, SH * 2, wallOpts),
+        Bodies.rectangle(MARGIN_X - 6,         SH / 2, 12, SH * 2, wallOpts),
         Bodies.rectangle(SVG_W - MARGIN_X + 6, SH / 2, 12, SH * 2, wallOpts),
-        // Floor just below the buckets so balls settle
         Bodies.rectangle(CENTER_X, BY + BUCKET_H + 8, SVG_W, 16, {
           isStatic: true, label: "floor",
         }),
@@ -126,29 +125,27 @@ function PlinkoBoard({
 
       // ── Ball bodies ──
       const ballBodies = result.drops.map(() => {
-        // Spread the drop position ± ¼ peg spacing for variety
-        const startX = CENTER_X + (Math.random() - 0.5) * (PS * 0.5);
+        const startX = CENTER_X + (Math.random() - 0.5) * 3;
         const ball = Bodies.circle(startX, PEG_START_Y - 22, BR, {
-          restitution: 0.42,
-          friction: 0.04,
-          frictionAir: 0.009,
+          restitution: 0.25,
+          friction: 0.02,
+          frictionAir: 0.008,
           density: 0.002,
           label: "ball",
         });
-        // Tiny initial x nudge so each ball immediately diverges
-        Body.setVelocity(ball, { x: (Math.random() - 0.5) * 0.4, y: 0.2 });
+        Body.setVelocity(ball, { x: (Math.random() - 0.5) * 0.3, y: 0.5 });
         return ball;
       });
       World.add(engine.world, ballBodies);
 
-      // ── Steering: at each row crossing, bias vx toward predetermined direction ──
-      // This ensures the ball's visual path matches the server outcome
-      // while still looking fully physical (gravity, bounces, friction are all real)
+      // ── Per-ball state ──
+      // rights tracks how many R turns have been applied (= bucketIdx when done)
       const ballStates = result.drops.map(() => ({
         lastRow: -1,
+        rights: 0,
         landed: false,
       }));
-      let allLanded      = false;
+      let allLanded = false;
       let completionTimer: ReturnType<typeof setTimeout> | null = null;
 
       Events.on(engine, "afterUpdate", () => {
@@ -157,25 +154,35 @@ function PlinkoBoard({
           const state = ballStates[i];
           if (state.landed) continue;
 
-          // Only steer while moving downward
           if (ball.velocity.y > 0) {
             for (let r = state.lastRow + 1; r < rows; r++) {
               const pegY = PEG_START_Y + r * RH;
-              if (ball.position.y >= pegY - RH * 0.15) {
+              if (ball.position.y >= pegY - RH * 0.18) {
                 state.lastRow = r;
                 const dir  = result.drops[i].path[r];
                 const sign = dir === "R" ? 1 : -1;
-                // Preserve vertical speed; bias horizontal in correct direction.
-                // A small random ε keeps the ball motion looking imperfect.
-                const ε   = Math.random() * 0.35;
-                const vx  = sign * (Math.max(Math.abs(ball.velocity.x), 0.6) + ε);
-                Body.setVelocity(ball, { x: vx, y: ball.velocity.y });
-                break; // only handle one new row per frame
+
+                // ① Snap x to the correct gap so accumulated drift can't
+                //    cause the ball to pass through the wrong channel
+                const correctX = CENTER_X + (state.rights - r / 2) * PS;
+                Body.setPosition(ball, {
+                  x: correctX + (Math.random() - 0.5) * PS * 0.12,
+                  y: ball.position.y,
+                });
+
+                // ② Set vx in correct direction + ensure minimum vy so
+                //    energy losses from bounces don't stall the ball
+                Body.setVelocity(ball, {
+                  x: sign * (0.9 + Math.random() * 0.5),
+                  y: Math.max(ball.velocity.y, 1.2),
+                });
+
+                if (dir === "R") state.rights++;
+                break;
               }
             }
           }
 
-          // Detect landing in bucket zone
           if (ball.position.y >= BY + BUCKET_H * 0.5 && !state.landed) {
             state.landed = true;
           }
