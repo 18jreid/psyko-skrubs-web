@@ -13,7 +13,6 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SingleDrop {
-  path: ("L" | "R")[];
   bucketIdx: number;
   multiplier: number;
   winnings: number;
@@ -28,7 +27,7 @@ interface DropResult {
   balance: number;
 }
 
-// ── Layout constants (logical px = Matter.js units) ───────────────────────────
+// ── Layout constants ──────────────────────────────────────────────────────────
 const BOARD_W    = 560;
 const BOARD_PAD  = 24;
 const PEG_START_Y = 50;
@@ -56,18 +55,18 @@ function boardH(rows: PlinkoRows): number {
 function bucketCX(b: number, rows: PlinkoRows): number {
   return CENTER_X + (b - rows / 2) * pegSpacing(rows);
 }
-function ballXAtRow(rights: number, r: number, rows: PlinkoRows): number {
-  return CENTER_X + (rights - r / 2) * pegSpacing(rows);
+
+// Detect which bucket a ball landed in based on its x position
+function detectBucket(x: number, rows: PlinkoRows): number {
+  const PS = pegSpacing(rows);
+  const idx = Math.round((x - CENTER_X) / PS + rows / 2);
+  return Math.max(0, Math.min(rows, idx));
 }
 
-// ── Rounded rect helper (no ctx.roundRect for compat) ────────────────────────
+// ── Rounded rect helper ───────────────────────────────────────────────────────
 function roundRect(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
+  x: number, y: number, w: number, h: number, r: number
 ) {
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
@@ -81,7 +80,7 @@ function roundRect(
   ctx.closePath();
 }
 
-// ── drawFrame — pure function, runs outside component ────────────────────────
+// ── Draw config type ──────────────────────────────────────────────────────────
 interface DrawCfg {
   rows: PlinkoRows;
   risk: PlinkoRisk;
@@ -95,7 +94,7 @@ interface DrawCfg {
   numBuckets: number;
 }
 
-// Draw pegs onto any canvas context (used to build the peg cache)
+// ── Peg cache (pre-render static background + pegs) ───────────────────────────
 function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
   const { rows, PS, RH, PR } = cfg;
   for (let r = 0; r < rows; r++) {
@@ -103,8 +102,6 @@ function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
     const y = PEG_START_Y + r * RH;
     for (let j = 0; j < n; j++) {
       const x = CENTER_X + (j - (n - 1) / 2) * PS;
-
-      // Soft halo
       const haloR = PR * 3.5;
       const halo = ctx.createRadialGradient(x, y, 0, x, y, haloR);
       halo.addColorStop(0, "rgba(200,220,255,0.10)");
@@ -114,10 +111,7 @@ function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
       ctx.fillStyle = halo;
       ctx.fill();
 
-      // Peg body
-      const hlx = x - PR * 0.3;
-      const hly = y - PR * 0.3;
-      const pegGrad = ctx.createRadialGradient(hlx, hly, 0, x, y, PR);
+      const pegGrad = ctx.createRadialGradient(x - PR * 0.3, y - PR * 0.3, 0, x, y, PR);
       pegGrad.addColorStop(0, "#f1f5f9");
       pegGrad.addColorStop(1, "#94a3b8");
       ctx.beginPath();
@@ -125,7 +119,6 @@ function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
       ctx.fillStyle = pegGrad;
       ctx.fill();
 
-      // Specular dot
       ctx.beginPath();
       ctx.arc(x - PR * 0.28, y - PR * 0.28, PR * 0.22, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
@@ -134,7 +127,6 @@ function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
   }
 }
 
-// Build an offscreen canvas with background + pegs pre-rendered
 function buildPegCache(cfg: DrawCfg): HTMLCanvasElement {
   const dpr = window.devicePixelRatio || 1;
   const c = document.createElement("canvas");
@@ -148,6 +140,7 @@ function buildPegCache(cfg: DrawCfg): HTMLCanvasElement {
   return c;
 }
 
+// ── drawFrame ─────────────────────────────────────────────────────────────────
 function drawFrame(
   ctx: CanvasRenderingContext2D,
   cfg: DrawCfg,
@@ -158,19 +151,18 @@ function drawFrame(
 ) {
   const { rows, BH, PS, BR, BY, mults, numBuckets } = cfg;
 
-  // 1. Background + pegs from cache (single drawImage instead of 306 gradient objects)
+  // 1. Background + pegs from cache
   ctx.drawImage(pegCache, 0, 0, BOARD_W, BH);
 
   // 2. Buckets
   for (let b = 0; b < numBuckets; b++) {
-    const cx   = bucketCX(b, rows);
-    const bw   = PS - 3;
-    const bx   = cx - bw / 2;
+    const cx    = bucketCX(b, rows);
+    const bw    = PS - 3;
+    const bx    = cx - bw / 2;
     const mult  = mults[b];
     const color = bucketColor(mult);
     const glow  = activeBuckets[b] ?? 0;
 
-    // Fill
     ctx.beginPath();
     roundRect(ctx, bx, BY, bw, BUCKET_H, 3);
     ctx.fillStyle = glow > 0
@@ -178,75 +170,56 @@ function drawFrame(
       : color + "28";
     ctx.fill();
 
-    // Stroke
     ctx.beginPath();
     roundRect(ctx, bx, BY, bw, BUCKET_H, 3);
-    const strokeAlpha = glow > 0 ? Math.round(0xff * Math.min(1, 0.5 + glow * 0.5)) : 0x55;
-    ctx.strokeStyle = color + strokeAlpha.toString(16).padStart(2, "0");
+    ctx.strokeStyle = color + (glow > 0 ? Math.round(0xff * Math.min(1, 0.5 + glow * 0.5)).toString(16).padStart(2, "0") : "55");
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Active glow — 3 layered strokes, no shadowBlur
     if (glow > 0) {
-      const glowLayers = [
-        { lw: 10, alpha: 0.07 * glow },
-        { lw: 6,  alpha: 0.14 * glow },
-        { lw: 2,  alpha: 0.55 * glow },
-      ];
-      for (const { lw, alpha } of glowLayers) {
+      for (const [lw, alpha] of [[10, 0.07 * glow], [6, 0.14 * glow], [2, 0.55 * glow]] as [number, number][]) {
         ctx.beginPath();
         roundRect(ctx, bx, BY, bw, BUCKET_H, 3);
-        const a = Math.round(alpha * 255).toString(16).padStart(2, "0");
-        ctx.strokeStyle = color + a;
+        ctx.strokeStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
         ctx.lineWidth = lw;
         ctx.stroke();
       }
     }
 
-    // Multiplier text
     const fontSize = bw < 32 ? 8 : bw < 45 ? 9 : 10;
     ctx.font = `bold ${fontSize}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const isActive = glow > 0;
-    ctx.fillStyle = isActive ? (mult >= 1.5 ? "#000" : "#fff") : color;
+    ctx.fillStyle = glow > 0 ? (mult >= 1.5 ? "#000" : "#fff") : color;
     ctx.fillText(formatMult(mult), cx, BY + BUCKET_H / 2);
   }
 
-  // 4. Ball trails
+  // 3. Ball trails
   for (let i = 0; i < trails.length; i++) {
     const trail = trails[i];
-    const len = trail.length;
-    for (let t = 0; t < len; t++) {
-      const { x, y } = trail[t];
-      const frac = t / len;
+    for (let t = 0; t < trail.length; t++) {
+      const frac = t / trail.length;
       const r2 = BR * frac * 0.6;
       if (r2 < 0.5) continue;
       ctx.beginPath();
-      ctx.arc(x, y, r2, 0, Math.PI * 2);
+      ctx.arc(trail[t].x, trail[t].y, r2, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(249,115,22,${frac * 0.3})`;
       ctx.fill();
     }
   }
 
-  // 5. Balls
+  // 4. Balls
   for (const ball of ballBodies) {
     const { x, y } = ball.position;
-
-    // Outer glow
-    const outerR = BR * 2.5;
-    const outerGrad = ctx.createRadialGradient(x, y, 0, x, y, outerR);
+    const outerGrad = ctx.createRadialGradient(x, y, 0, x, y, BR * 2.5);
     outerGrad.addColorStop(0, "rgba(249,115,22,0.4)");
     outerGrad.addColorStop(1, "rgba(249,115,22,0)");
     ctx.beginPath();
-    ctx.arc(x, y, outerR, 0, Math.PI * 2);
+    ctx.arc(x, y, BR * 2.5, 0, Math.PI * 2);
     ctx.fillStyle = outerGrad;
     ctx.fill();
 
-    // Ball body
-    const hlx = x - BR * 0.3;
-    const hly = y - BR * 0.3;
-    const ballGrad = ctx.createRadialGradient(hlx, hly, 0, x, y, BR);
+    const ballGrad = ctx.createRadialGradient(x - BR * 0.3, y - BR * 0.3, 0, x, y, BR);
     ballGrad.addColorStop(0,   "#fff7ed");
     ballGrad.addColorStop(0.5, "#fb923c");
     ballGrad.addColorStop(1,   "#9a3412");
@@ -255,7 +228,6 @@ function drawFrame(
     ctx.fillStyle = ballGrad;
     ctx.fill();
 
-    // Specular highlight
     ctx.beginPath();
     ctx.arc(x - BR * 0.28, y - BR * 0.32, BR * 0.22, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
@@ -263,40 +235,35 @@ function drawFrame(
   }
 }
 
-// ── PlinkoBoard component ─────────────────────────────────────────────────────
+// ── PlinkoBoard ───────────────────────────────────────────────────────────────
 function PlinkoBoard({
-  rows,
-  risk,
-  result,
-  animKey,
-  onAnimationComplete,
+  rows, risk, animKey, numBalls, onBallsLanded,
 }: {
   rows: PlinkoRows;
   risk: PlinkoRisk;
-  result: DropResult | null;
   animKey: number;
-  onAnimationComplete: () => void;
+  numBalls: number;
+  onBallsLanded: (bucketIndices: number[]) => void;
 }) {
-  const PS  = pegSpacing(rows);
-  const RH  = rowHeight(rows);
-  const PR  = pegRadius(rows);
-  const BR  = ballRadius(rows);
-  const BY  = bucketTopY(rows);
-  const BH  = boardH(rows);
+  const PS = pegSpacing(rows);
+  const RH = rowHeight(rows);
+  const PR = pegRadius(rows);
+  const BR = ballRadius(rows);
+  const BY = bucketTopY(rows);
+  const BH = boardH(rows);
   const mults      = MULTIPLIERS[rows][risk];
   const numBuckets = rows + 1;
-
   const cfg: DrawCfg = { rows, risk, BH, PS, RH, PR, BR, BY, mults, numBuckets };
 
-  const canvasRef      = useRef<HTMLCanvasElement | null>(null);
-  const pegCacheRef    = useRef<HTMLCanvasElement | null>(null);
-  const engineRef      = useRef<import("matter-js").Engine | null>(null);
-  const runnerRef      = useRef<import("matter-js").Runner | null>(null);
-  const rafRef         = useRef<number | null>(null);
-  const trailsRef      = useRef<{ x: number; y: number }[][]>([]);
+  const canvasRef        = useRef<HTMLCanvasElement | null>(null);
+  const pegCacheRef      = useRef<HTMLCanvasElement | null>(null);
+  const engineRef        = useRef<import("matter-js").Engine | null>(null);
+  const runnerRef        = useRef<import("matter-js").Runner | null>(null);
+  const rafRef           = useRef<number | null>(null);
+  const trailsRef        = useRef<{ x: number; y: number }[][]>([]);
   const activeBucketsRef = useRef<Record<number, number>>({});
 
-  // ── Static board draw on rows/risk change ──────────────────────────────────
+  // ── Static draw on rows/risk change ─────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -308,25 +275,22 @@ function PlinkoBoard({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
-    // Build peg cache once — reused every animation frame
     const pegCache = buildPegCache(cfg);
     pegCacheRef.current = pegCache;
     drawFrame(ctx, cfg, [], [], {}, pegCache);
   }, [rows, risk]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Physics animation on animKey change ────────────────────────────────────
+  // ── Physics animation ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (animKey === 0 || !result) return;
+    if (animKey === 0) return;
 
-    // Reset trails & buckets
-    trailsRef.current = result.drops.map(() => []);
+    trailsRef.current   = Array.from({ length: numBalls }, () => []);
     activeBucketsRef.current = {};
 
     const setupFrame = requestAnimationFrame(async () => {
       const Matter = await import("matter-js");
       const { Engine, Bodies, Body, World, Runner, Events } = Matter;
 
-      // Tear down previous simulation
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (runnerRef.current) Runner.stop(runnerRef.current);
       if (engineRef.current) {
@@ -334,7 +298,6 @@ function PlinkoBoard({
         Engine.clear(engineRef.current);
       }
 
-      // Canvas setup (retina-aware)
       const canvas = canvasRef.current;
       if (!canvas) return;
       const dpr = window.devicePixelRatio || 1;
@@ -346,12 +309,10 @@ function PlinkoBoard({
       if (!ctx) return;
       ctx.scale(dpr, dpr);
 
-      // Reuse cached peg canvas (built in static draw effect); rebuild if needed
       const pegCache = pegCacheRef.current ?? buildPegCache(cfg);
       pegCacheRef.current = pegCache;
 
-      // Build engine
-      const engine = Engine.create({ gravity: { x: 0, y: 0.4 } });
+      const engine = Engine.create({ gravity: { x: 0, y: 0.5 } });
       engineRef.current = engine;
 
       // Static pegs
@@ -361,16 +322,13 @@ function PlinkoBoard({
         for (let j = 0; j < n; j++) {
           const x = CENTER_X + (j - (n - 1) / 2) * PS;
           World.add(engine.world, Bodies.circle(x, y, PR, {
-            isStatic: true,
-            restitution: 0.3,
-            friction: 0.02,
-            label: "peg",
+            isStatic: true, restitution: 0.4, friction: 0.01, label: "peg",
           }));
         }
       }
 
-      // Walls
-      const wallOpts = { isStatic: true, restitution: 0.1, friction: 0, label: "wall" };
+      // Walls + floor
+      const wallOpts = { isStatic: true, restitution: 0.2, friction: 0, label: "wall" };
       World.add(engine.world, [
         Bodies.rectangle(BOARD_PAD - 8,           BH / 2, 16, BH * 2, wallOpts),
         Bodies.rectangle(BOARD_W - BOARD_PAD + 8, BH / 2, 16, BH * 2, wallOpts),
@@ -379,103 +337,65 @@ function PlinkoBoard({
         }),
       ]);
 
-      // Ball bodies
-      const ballBodies = result.drops.map(() => {
-        const startX = CENTER_X + (Math.random() - 0.5) * 3;
-        const ball = Bodies.circle(startX, PEG_START_Y - 22, BR, {
-          restitution: 0.3,
-          friction: 0.02,
-          frictionAir: 0.008,
-          density: 0.003,
-          label: "ball",
-        });
-        Body.setVelocity(ball, { x: 0, y: 0.5 });
+      // Ball bodies — small random horizontal nudge for variation
+      const ballBodies = Array.from({ length: numBalls }, () => {
+        const ball = Bodies.circle(
+          CENTER_X + (Math.random() - 0.5) * PS * 0.5,
+          PEG_START_Y - 22,
+          BR,
+          { restitution: 0.4, friction: 0.01, frictionAir: 0.005, density: 0.003, label: "ball" }
+        );
+        Body.setVelocity(ball, { x: (Math.random() - 0.5) * 0.5, y: 0.5 });
         return ball;
       });
       World.add(engine.world, ballBodies);
 
-      // Per-ball state
-      const ballStates = result.drops.map(() => ({
-        lastRow: -1,
-        rights: 0,
-        landed: false,
-      }));
-      let allLanded = false;
+      // Track landings
+      const landed    = new Array<boolean>(numBalls).fill(false);
+      const buckets   = new Array<number>(numBalls).fill(-1);
+      let   allLanded = false;
 
       Events.on(engine, "afterUpdate", () => {
-        for (let i = 0; i < ballBodies.length; i++) {
-          const ball  = ballBodies[i];
-          const state = ballStates[i];
-          if (state.landed) continue;
-
-          if (ball.velocity.y > 0) {
-            for (let r = state.lastRow + 1; r < rows; r++) {
-              const pegY = PEG_START_Y + r * RH;
-              if (ball.position.y >= pegY - RH * 0.18) {
-                state.lastRow = r;
-                const dir  = result.drops[i].path[r];
-                const sign = dir === "R" ? 1 : -1;
-
-                // Correct x position toward expected channel
-                const correctX = ballXAtRow(state.rights, r, rows);
-                const dx = correctX - ball.position.x;
-                const clampedDx = Math.max(-PS * 0.35, Math.min(PS * 0.35, dx));
-                Body.setPosition(ball, {
-                  x: ball.position.x + clampedDx + (Math.random() - 0.5) * PS * 0.08,
-                  y: ball.position.y,
-                });
-
-                Body.setVelocity(ball, {
-                  x: sign * (Math.max(Math.abs(ball.velocity.x), 0.9) + Math.random() * 0.4),
-                  y: Math.max(ball.velocity.y, 1.3),
-                });
-
-                if (dir === "R") state.rights++;
-                break;
-              }
-            }
-          }
-
-          if (ball.position.y >= BY + BUCKET_H * 0.4 && !state.landed) {
-            state.landed = true;
+        for (let i = 0; i < numBalls; i++) {
+          if (!landed[i] && ballBodies[i].position.y >= BY + BUCKET_H * 0.3) {
+            landed[i]  = true;
+            buckets[i] = detectBucket(ballBodies[i].position.x, rows);
+            // Immediately begin glow for this bucket
+            activeBucketsRef.current[buckets[i]] = 0;
           }
         }
 
-        if (!allLanded && ballStates.every(s => s.landed)) {
+        if (!allLanded && landed.every(Boolean)) {
           allLanded = true;
-          setTimeout(() => {
-            let frame = 0;
-            const glow = () => {
-              frame++;
-              for (const d of result.drops) {
-                activeBucketsRef.current[d.bucketIdx] = Math.min(1, frame / 20);
-              }
-              if (frame < 20) {
-                requestAnimationFrame(glow);
-              } else {
-                setTimeout(onAnimationComplete, 300);
-              }
-            };
-            requestAnimationFrame(glow);
-          }, 400);
+          // Glow animation, then report results
+          let frame = 0;
+          const glow = () => {
+            frame++;
+            for (const idx of buckets) {
+              activeBucketsRef.current[idx] = Math.min(1, frame / 20);
+            }
+            if (frame < 20) {
+              requestAnimationFrame(glow);
+            } else {
+              setTimeout(() => onBallsLanded(buckets), 300);
+            }
+          };
+          requestAnimationFrame(glow);
         }
       });
 
-      // RAF render loop
+      // Render loop
       const renderLoop = () => {
-        // Append current positions to trails, trim to 14
-        for (let i = 0; i < ballBodies.length; i++) {
+        for (let i = 0; i < numBalls; i++) {
           const pos = ballBodies[i].position;
           trailsRef.current[i].push({ x: pos.x, y: pos.y });
           if (trailsRef.current[i].length > 14) trailsRef.current[i].shift();
         }
-
         drawFrame(ctx, cfg, ballBodies, trailsRef.current, activeBucketsRef.current, pegCache);
         rafRef.current = requestAnimationFrame(renderLoop);
       };
       rafRef.current = requestAnimationFrame(renderLoop);
 
-      // Start physics runner
       const runner = Runner.create({ delta: 1000 / 60 });
       runnerRef.current = runner;
       Runner.run(runner, engine);
@@ -493,18 +413,12 @@ function PlinkoBoard({
         }
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animKey]);
+  }, [animKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        display: "block",
-        width: "100%",
-        borderRadius: 12,
-        background: "#05050c",
-      }}
+      style={{ display: "block", width: "100%", borderRadius: 12, background: "#05050c" }}
     />
   );
 }
@@ -531,7 +445,6 @@ export default function PlinkoPage() {
   const [showResult, setShowResult] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
-  // Fetch balance on mount
   useEffect(() => {
     fetch("/api/cases/balance")
       .then(r => r.json())
@@ -540,37 +453,35 @@ export default function PlinkoPage() {
 
   const totalBet = bet * numBalls;
   const maxMult  = MULTIPLIERS[rows][risk][0];
-
-  // Memoize animKey to avoid stale closure issues in PlinkoBoard key
   const boardKey = useMemo(() => rows, [rows]);
 
-  const drop = async () => {
+  const drop = () => {
     if (isDropping) return;
     setError(null);
     setShowResult(false);
     setIsDropping(true);
+    // Optimistic balance deduct so UI updates immediately
+    setBalance(prev => prev !== null ? prev - totalBet : prev);
+    setAnimKey(k => k + 1);
+  };
 
+  const handleBallsLanded = async (bucketIndices: number[]) => {
     const res = await fetch("/api/plinko/drop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bet, rows, risk, count: numBalls }),
+      body: JSON.stringify({ bet, rows, risk, count: numBalls, bucketIndices }),
     });
     const data = await res.json();
 
     if (!res.ok) {
       setError(data.error ?? "Error");
-      setIsDropping(false);
-      return;
+      // Restore optimistic deduct on failure
+      setBalance(prev => prev !== null ? prev + totalBet : prev);
+    } else {
+      setResult(data);
+      setBalance(data.balance);
+      setShowResult(true);
     }
-
-    setBalance(prev => prev === null ? null : prev - totalBet);
-    setResult(data);
-    setAnimKey(k => k + 1);
-  };
-
-  const handleAnimationComplete = () => {
-    if (result) setBalance(result.balance);
-    setShowResult(true);
     setIsDropping(false);
   };
 
@@ -620,25 +531,19 @@ export default function PlinkoPage() {
 
           {/* Controls */}
           <div className="px-6 py-4 space-y-4 border-b border-white/5">
-
             {/* Rows */}
             <div>
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Rows</p>
               <div className="flex gap-2">
                 {([8, 12, 16] as PlinkoRows[]).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => { if (!isDropping) setRows(r); }}
+                  <button key={r} onClick={() => { if (!isDropping) setRows(r); }}
                     className="px-4 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: rows === r ? "#f97316" : "#ffffff08",
                       color:      rows === r ? "#fff" : "#6b7280",
                       border:     rows === r ? "1px solid #f97316" : "1px solid #ffffff10",
                       boxShadow:  rows === r ? "0 0 12px #f9731640" : "none",
-                    }}
-                  >
-                    {r}
-                  </button>
+                    }}>{r}</button>
                 ))}
               </div>
             </div>
@@ -650,19 +555,14 @@ export default function PlinkoPage() {
                 {(["low", "medium", "high"] as PlinkoRisk[]).map(r => {
                   const color = RISK_COLOR[r];
                   return (
-                    <button
-                      key={r}
-                      onClick={() => { if (!isDropping) setRisk(r); }}
+                    <button key={r} onClick={() => { if (!isDropping) setRisk(r); }}
                       className="px-4 py-1.5 rounded-lg text-sm font-black capitalize transition-all"
                       style={{
                         background: risk === r ? color : "#ffffff08",
                         color:      risk === r ? "#fff" : "#6b7280",
                         border:     risk === r ? `1px solid ${color}` : "1px solid #ffffff10",
                         boxShadow:  risk === r ? `0 0 12px ${color}50` : "none",
-                      }}
-                    >
-                      {r}
-                    </button>
+                      }}>{r}</button>
                   );
                 })}
               </div>
@@ -673,19 +573,14 @@ export default function PlinkoPage() {
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Balls</p>
               <div className="flex gap-2">
                 {VALID_COUNTS.map(n => (
-                  <button
-                    key={n}
-                    onClick={() => { if (!isDropping) setNumBalls(n); }}
+                  <button key={n} onClick={() => { if (!isDropping) setNumBalls(n); }}
                     className="px-4 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: numBalls === n ? "#a855f7" : "#ffffff08",
                       color:      numBalls === n ? "#fff" : "#6b7280",
                       border:     numBalls === n ? "1px solid #a855f7" : "1px solid #ffffff10",
                       boxShadow:  numBalls === n ? "0 0 12px #a855f750" : "none",
-                    }}
-                  >
-                    {n}
-                  </button>
+                    }}>{n}</button>
                 ))}
               </div>
             </div>
@@ -695,19 +590,14 @@ export default function PlinkoPage() {
               <p className="text-xs text-gray-600 uppercase tracking-widest font-bold mb-2">Bet Per Ball</p>
               <div className="flex gap-2 flex-wrap">
                 {VALID_BETS.map(b => (
-                  <button
-                    key={b}
-                    onClick={() => { if (!isDropping) setBet(b); }}
+                  <button key={b} onClick={() => { if (!isDropping) setBet(b); }}
                     className="px-3 py-1.5 rounded-lg text-sm font-black transition-all"
                     style={{
                       background: bet === b ? "#f97316" : "#ffffff08",
                       color:      bet === b ? "#fff" : "#6b7280",
                       border:     bet === b ? "1px solid #f97316" : "1px solid #ffffff10",
                       boxShadow:  bet === b ? "0 0 12px #f9731640" : "none",
-                    }}
-                  >
-                    {b.toLocaleString()}
-                  </button>
+                    }}>{b.toLocaleString()}</button>
                 ))}
               </div>
               <p className="text-xs text-gray-700 font-mono mt-1.5">
@@ -727,9 +617,9 @@ export default function PlinkoPage() {
               key={boardKey}
               rows={rows}
               risk={risk}
-              result={result}
               animKey={animKey}
-              onAnimationComplete={handleAnimationComplete}
+              numBalls={numBalls}
+              onBallsLanded={handleBallsLanded}
             />
           </div>
 
@@ -767,11 +657,8 @@ export default function PlinkoPage() {
                   {result.drops.map((d, i) => {
                     const color = bucketColor(d.multiplier);
                     return (
-                      <div
-                        key={i}
-                        className="px-2 py-0.5 rounded text-xs font-black font-mono"
-                        style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}
-                      >
+                      <div key={i} className="px-2 py-0.5 rounded text-xs font-black font-mono"
+                        style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}>
                         {formatMult(d.multiplier)}
                       </div>
                     );
@@ -792,12 +679,10 @@ export default function PlinkoPage() {
               disabled={!canDrop}
               className="w-full py-4 rounded-xl text-xl font-black uppercase tracking-widest transition-all"
               style={{
-                background: canDrop
-                  ? "linear-gradient(135deg, #f97316, #ea580c)"
-                  : "#1f1f2e",
-                color:     canDrop ? "#fff" : "#374151",
-                boxShadow: canDrop ? "0 0 30px #f9731640, 0 4px 20px rgba(0,0,0,0.4)" : "none",
-                cursor:    canDrop ? "pointer" : "not-allowed",
+                background: canDrop ? "linear-gradient(135deg, #f97316, #ea580c)" : "#1f1f2e",
+                color:      canDrop ? "#fff" : "#374151",
+                boxShadow:  canDrop ? "0 0 30px #f9731640, 0 4px 20px rgba(0,0,0,0.4)" : "none",
+                cursor:     canDrop ? "pointer" : "not-allowed",
               }}
             >
               {balance === null
@@ -812,10 +697,7 @@ export default function PlinkoPage() {
         </div>
 
         {/* Multiplier reference */}
-        <div
-          className="mt-4 rounded-2xl overflow-hidden"
-          style={{ background: "#0d0d18", border: "1px solid #ffffff08" }}
-        >
+        <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "#0d0d18", border: "1px solid #ffffff08" }}>
           <div className="px-4 py-3 border-b border-white/5 text-center">
             <p className="text-xs text-gray-600 uppercase tracking-widest font-bold">
               Bucket Multipliers — {rows} rows ·{" "}
@@ -826,11 +708,8 @@ export default function PlinkoPage() {
             {MULTIPLIERS[rows][risk].map((mult, i) => {
               const color = bucketColor(mult);
               return (
-                <div
-                  key={i}
-                  className="px-2 py-1 rounded text-xs font-black font-mono"
-                  style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}
-                >
+                <div key={i} className="px-2 py-1 rounded text-xs font-black font-mono"
+                  style={{ background: `${color}18`, border: `1px solid ${color}50`, color }}>
                   {formatMult(mult)}
                 </div>
               );
