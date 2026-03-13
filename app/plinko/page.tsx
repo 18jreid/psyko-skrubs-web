@@ -327,34 +327,21 @@ function PlinkoBoard({
         }
       }
 
-      // Diagonal pyramid walls — constrain balls within the peg triangle
-      // The pyramid goes from (CENTER_X, PEG_START_Y) at top to
-      // (CENTER_X ± rows/2*PS, BY) at the bottom corners.
-      const pyramidHeight   = BY - PEG_START_Y;
-      const pyramidHalfBase = (rows / 2) * PS;
-      const slopeAngle = Math.atan2(pyramidHalfBase, pyramidHeight); // tilt from vertical
-      const slopeLen   = Math.sqrt(pyramidHeight ** 2 + pyramidHalfBase ** 2) + PR * 4;
-      const slopeMidY  = (PEG_START_Y + BY) / 2;
-      const slopeOpts  = { isStatic: true, restitution: 0.5, friction: 0, label: "slope" };
+      // Floor only — pyramid confinement is handled as a soft wall in afterUpdate
       World.add(engine.world, [
-        // Left slope
-        Bodies.rectangle(CENTER_X - pyramidHalfBase / 2, slopeMidY, 8, slopeLen,
-          { ...slopeOpts, angle:  slopeAngle }),
-        // Right slope
-        Bodies.rectangle(CENTER_X + pyramidHalfBase / 2, slopeMidY, 8, slopeLen,
-          { ...slopeOpts, angle: -slopeAngle }),
-        // Floor
         Bodies.rectangle(CENTER_X, BY + BUCKET_H + 10, BOARD_W, 16, {
           isStatic: true, label: "floor",
         }),
       ]);
 
-      // Ball bodies — all from the same point; tiny stagger so they don't perfectly stack
+      // Pyramid geometry for soft-wall clamping
+      const pyramidHeight = BY - PEG_START_Y;
+
+      // Ball bodies — all from the same x; stagger vertically to avoid spawn collisions
       const ballBodies = Array.from({ length: numBalls }, (_, i) => {
-        const offset = (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2) * 0.8;
         const ball = Bodies.circle(
-          CENTER_X + offset,
-          PEG_START_Y - 22 - i * (BR * 2 + 2), // slight vertical stagger so they don't collide at spawn
+          CENTER_X,
+          PEG_START_Y - 22 - i * (BR * 2 + 3),
           BR,
           { restitution: 0.5, friction: 0.01, frictionAir: 0.005, density: 0.003, label: "ball" }
         );
@@ -370,10 +357,30 @@ function PlinkoBoard({
 
       Events.on(engine, "afterUpdate", () => {
         for (let i = 0; i < numBalls; i++) {
-          if (!landed[i] && ballBodies[i].position.y >= BY + BUCKET_H * 0.3) {
+          const ball = ballBodies[i];
+          if (landed[i]) continue;
+
+          const { x, y } = ball.position;
+
+          // Soft pyramid wall: compute max half-width at this y, clamp if outside
+          const t = Math.max(0, (y - PEG_START_Y) / pyramidHeight);
+          const halfW = (t * rows / 2 + 1) * PS;
+          if (x < CENTER_X - halfW) {
+            Body.setPosition(ball, { x: CENTER_X - halfW + BR, y });
+            Body.setVelocity(ball, { x:  Math.abs(ball.velocity.x) + 0.5, y: ball.velocity.y });
+          } else if (x > CENTER_X + halfW) {
+            Body.setPosition(ball, { x: CENTER_X + halfW - BR, y });
+            Body.setVelocity(ball, { x: -(Math.abs(ball.velocity.x) + 0.5), y: ball.velocity.y });
+          }
+
+          // Unstick: if ball is barely moving inside the pyramid, nudge it down
+          if (y < BY && Math.abs(ball.velocity.y) < 0.4 && Math.abs(ball.velocity.x) < 0.4) {
+            Body.setVelocity(ball, { x: ball.velocity.x, y: 1.2 });
+          }
+
+          if (y >= BY + BUCKET_H * 0.3) {
             landed[i]  = true;
-            buckets[i] = detectBucket(ballBodies[i].position.x, rows);
-            // Immediately begin glow for this bucket
+            buckets[i] = detectBucket(x, rows);
             activeBucketsRef.current[buckets[i]] = 0;
           }
         }
