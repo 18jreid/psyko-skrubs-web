@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toUSD } from "@/lib/caseItems";
 import {
   MULTIPLIERS, VALID_BETS, bucketColor, formatMult,
@@ -22,33 +22,80 @@ function ballRadius(rows: PlinkoRows)  { return rows === 8 ? 8 : rows === 12 ? 7
 function bucketTopY(rows: PlinkoRows)  { return PEG_START_Y + rows * rowHeight(rows) + 10; }
 function svgHeight(rows: PlinkoRows)   { return bucketTopY(rows) + BUCKET_H + 16; }
 
-// Ball x position: after `rights` right-turns, approaching row `r`
 function ballX(rights: number, r: number, rows: PlinkoRows) {
   return CENTER_X + (rights - r / 2) * pegSpacing(rows);
 }
 
-// Waypoints for one ball's path — rows+2 points total
-function computeWaypoints(path: ("L" | "R")[], rows: PlinkoRows) {
+/**
+ * Produces 3*rows+2 waypoints per ball:
+ *   1 entry point above board
+ *   per row: approach → peg deflect → depart toward next row
+ *   1 final bucket landing
+ *
+ * `startJitter` (±px) gives each ball a unique horizontal starting offset
+ * that fades toward zero as the ball falls — makes paths visually distinct
+ * even when two balls share the same L/R choices.
+ */
+function computeWaypoints(
+  path: ("L" | "R")[],
+  rows: PlinkoRows,
+  startJitter: number,
+): { x: number; y: number }[] {
   const PS = pegSpacing(rows);
   const RH = rowHeight(rows);
   const BY = bucketTopY(rows);
   const pts: { x: number; y: number }[] = [];
 
   let rights = 0;
-  pts.push({ x: CENTER_X, y: PEG_START_Y - 22 }); // entry above board
+  pts.push({ x: CENTER_X + startJitter, y: PEG_START_Y - 25 });
 
   for (let r = 0; r < rows; r++) {
-    pts.push({ x: ballX(rights, r, rows), y: PEG_START_Y + r * RH });
-    if (path[r] === "R") rights++;
+    const base   = ballX(rights, r, rows);
+    // Jitter fades: full spread at top, gone by bottom
+    const fade   = startJitter * Math.max(0, 1 - r / rows) * 0.55;
+    // Small random noise at each peg — purely cosmetic, doesn't change outcome
+    const noise  = (Math.random() - 0.5) * 3.5;
+    const dir    = path[r];
+    const deflect = dir === "R" ? PS * 0.14 : -PS * 0.14;
+
+    // 1. Approach peg from above
+    pts.push({ x: base + fade,                         y: PEG_START_Y + r * RH - RH * 0.28 });
+    // 2. Hit peg — deflect in bounce direction
+    pts.push({ x: base + deflect + noise,              y: PEG_START_Y + r * RH });
+
+    if (dir === "R") rights++;
+
+    // 3. Depart toward next gap
+    const nextBase = ballX(rights, r + 1, rows);
+    pts.push({ x: nextBase + fade * 0.45 + noise * 0.4, y: PEG_START_Y + r * RH + RH * 0.5 });
   }
 
+  // Land precisely in bucket — no jitter at the end
   pts.push({ x: CENTER_X + (rights - rows / 2) * PS, y: BY + BUCKET_H / 2 });
   return pts;
 }
 
-// ── Timing — deliberately slower for satisfying visual ───────────────────────
-function stepMs(rows: PlinkoRows)       { return rows === 8 ? 200 : rows === 12 ? 180 : 195; }
-function transitionMs(rows: PlinkoRows) { return rows === 8 ? 178 : rows === 12 ? 160 : 173; }
+/**
+ * Per-step delay array: slow at the top (gravity = 0), fast at the bottom.
+ * Targets: 8-row ≈ 2.0 s, 12-row ≈ 2.7 s, 16-row ≈ 3.5 s total.
+ *
+ * Formula: delay[i] = dMax - (dMax - dMin) * (i/n)²  (quadratic ease-in)
+ * Integral ≈ n * (dMax - (dMax-dMin)/3) = n * (2dMax/3 + dMin/3) = target
+ * With dMin = dMax * 0.25:  n * dMax * 0.75 = target  →  dMax = target / (n * 0.75)
+ */
+function computeDelays(rows: PlinkoRows): number[] {
+  const n      = 3 * rows + 2; // waypoint count
+  const target = rows === 8 ? 2000 : rows === 12 ? 2700 : 3500;
+  const dMax   = target / (n * 0.75);
+  const dMin   = dMax * 0.25;
+  return Array.from({ length: n }, (_, i) => {
+    const t = i / Math.max(n - 1, 1);
+    return dMax - (dMax - dMin) * t * t;
+  });
+}
+
+// Fixed CSS transition — slightly under the fastest step so motion stays crisp
+const BALL_TRANSITION_MS = 58;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface SingleDrop {
@@ -90,40 +137,44 @@ function PlinkoBoard({
   const BY = bucketTopY(rows);
   const SH = svgHeight(rows);
   const bucketW = PS - BUCKET_GAP * 2;
-  const TMS = transitionMs(rows);
 
   type BallState = { x: number; y: number; visible: boolean };
   const [balls, setBalls] = useState<BallState[]>([]);
-  // bucketHits[b] = count of balls that landed there
   const [bucketHits, setBucketHits] = useState<Record<number, number>>({});
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     if (animKey === 0 || !result) return;
+    cancelRef.current = false;
 
-    const waypointsList = result.drops.map(d => computeWaypoints(d.path, rows));
-    const maxSteps = rows + 2; // all balls share same waypoint count
+    // Each ball gets a unique random starting jitter (±7 px)
+    const waypointsList = result.drops.map(d =>
+      computeWaypoints(d.path, rows, (Math.random() - 0.5) * 14)
+    );
+    const delays   = computeDelays(rows);
+    const maxSteps = waypointsList[0].length; // 3*rows+2
 
-    // Initialise all balls at entry position
     setBalls(waypointsList.map(wp => ({ x: wp[0].x, y: wp[0].y, visible: true })));
     setBucketHits({});
 
-    const ST = stepMs(rows);
     let step = 1;
-
-    const interval = setInterval(() => {
+    const tick = () => {
+      if (cancelRef.current) return;
       if (step < maxSteps) {
         setBalls(waypointsList.map(wp => ({ x: wp[step].x, y: wp[step].y, visible: true })));
+        const delay = delays[Math.min(step, delays.length - 1)];
         step++;
+        setTimeout(tick, delay);
       } else {
-        clearInterval(interval);
         const hits: Record<number, number> = {};
         for (const d of result.drops) hits[d.bucketIdx] = (hits[d.bucketIdx] ?? 0) + 1;
         setBucketHits(hits);
         setTimeout(onAnimationComplete, 400);
       }
-    }, ST);
+    };
 
-    return () => clearInterval(interval);
+    setTimeout(tick, delays[0]);
+    return () => { cancelRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey]);
 
@@ -146,7 +197,7 @@ function PlinkoBoard({
     return { cx, x: cx - bucketW / 2, width: bucketW, mult, color, hits };
   });
 
-  const fs = PS < 32 ? 8 : PS < 45 ? 9 : 10;
+  const fs  = PS < 32 ? 8 : PS < 45 ? 9 : 10;
 
   return (
     <svg viewBox={`0 0 ${SVG_W} ${SH}`} width="100%" style={{ display: "block" }}>
@@ -210,7 +261,7 @@ function PlinkoBoard({
             key={i}
             style={{
               transform: `translate(${b.x}px, ${b.y}px)`,
-              transition: `transform ${TMS}ms ease-in-out`,
+              transition: `transform ${BALL_TRANSITION_MS}ms ease-in-out`,
             }}
           >
             <circle
