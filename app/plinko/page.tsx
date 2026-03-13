@@ -327,25 +327,38 @@ function PlinkoBoard({
         }
       }
 
-      // Walls + floor
-      const wallOpts = { isStatic: true, restitution: 0.2, friction: 0, label: "wall" };
+      // Diagonal pyramid walls — constrain balls within the peg triangle
+      // The pyramid goes from (CENTER_X, PEG_START_Y) at top to
+      // (CENTER_X ± rows/2*PS, BY) at the bottom corners.
+      const pyramidHeight   = BY - PEG_START_Y;
+      const pyramidHalfBase = (rows / 2) * PS;
+      const slopeAngle = Math.atan2(pyramidHalfBase, pyramidHeight); // tilt from vertical
+      const slopeLen   = Math.sqrt(pyramidHeight ** 2 + pyramidHalfBase ** 2) + PR * 4;
+      const slopeMidY  = (PEG_START_Y + BY) / 2;
+      const slopeOpts  = { isStatic: true, restitution: 0.5, friction: 0, label: "slope" };
       World.add(engine.world, [
-        Bodies.rectangle(BOARD_PAD - 8,           BH / 2, 16, BH * 2, wallOpts),
-        Bodies.rectangle(BOARD_W - BOARD_PAD + 8, BH / 2, 16, BH * 2, wallOpts),
+        // Left slope
+        Bodies.rectangle(CENTER_X - pyramidHalfBase / 2, slopeMidY, 8, slopeLen,
+          { ...slopeOpts, angle:  slopeAngle }),
+        // Right slope
+        Bodies.rectangle(CENTER_X + pyramidHalfBase / 2, slopeMidY, 8, slopeLen,
+          { ...slopeOpts, angle: -slopeAngle }),
+        // Floor
         Bodies.rectangle(CENTER_X, BY + BUCKET_H + 10, BOARD_W, 16, {
           isStatic: true, label: "floor",
         }),
       ]);
 
-      // Ball bodies — small random horizontal nudge for variation
-      const ballBodies = Array.from({ length: numBalls }, () => {
+      // Ball bodies — all from the same point; tiny stagger so they don't perfectly stack
+      const ballBodies = Array.from({ length: numBalls }, (_, i) => {
+        const offset = (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2) * 0.8;
         const ball = Bodies.circle(
-          CENTER_X + (Math.random() - 0.5) * PS * 0.5,
-          PEG_START_Y - 22,
+          CENTER_X + offset,
+          PEG_START_Y - 22 - i * (BR * 2 + 2), // slight vertical stagger so they don't collide at spawn
           BR,
-          { restitution: 0.4, friction: 0.01, frictionAir: 0.005, density: 0.003, label: "ball" }
+          { restitution: 0.5, friction: 0.01, frictionAir: 0.005, density: 0.003, label: "ball" }
         );
-        Body.setVelocity(ball, { x: (Math.random() - 0.5) * 0.5, y: 0.5 });
+        Body.setVelocity(ball, { x: 0, y: 0.5 });
         return ball;
       });
       World.add(engine.world, ballBodies);
