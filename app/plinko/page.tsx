@@ -95,27 +95,16 @@ interface DrawCfg {
   numBuckets: number;
 }
 
-function drawFrame(
-  ctx: CanvasRenderingContext2D,
-  cfg: DrawCfg,
-  ballBodies: { position: { x: number; y: number } }[],
-  trails: { x: number; y: number }[][],
-  activeBuckets: Record<number, number>
-) {
-  const { rows, BH, PS, RH, PR, BR, BY, mults, numBuckets } = cfg;
-
-  // 1. Background
-  ctx.fillStyle = "#05050c";
-  ctx.fillRect(0, 0, BOARD_W, BH);
-
-  // 2. Pegs
+// Draw pegs onto any canvas context (used to build the peg cache)
+function drawPegs(ctx: CanvasRenderingContext2D, cfg: DrawCfg) {
+  const { rows, PS, RH, PR } = cfg;
   for (let r = 0; r < rows; r++) {
     const n = r + 2;
     const y = PEG_START_Y + r * RH;
     for (let j = 0; j < n; j++) {
       const x = CENTER_X + (j - (n - 1) / 2) * PS;
 
-      // Soft halo glow
+      // Soft halo
       const haloR = PR * 3.5;
       const halo = ctx.createRadialGradient(x, y, 0, x, y, haloR);
       halo.addColorStop(0, "rgba(200,220,255,0.10)");
@@ -125,7 +114,7 @@ function drawFrame(
       ctx.fillStyle = halo;
       ctx.fill();
 
-      // Peg body with radial gradient
+      // Peg body
       const hlx = x - PR * 0.3;
       const hly = y - PR * 0.3;
       const pegGrad = ctx.createRadialGradient(hlx, hly, 0, x, y, PR);
@@ -143,8 +132,36 @@ function drawFrame(
       ctx.fill();
     }
   }
+}
 
-  // 3. Buckets
+// Build an offscreen canvas with background + pegs pre-rendered
+function buildPegCache(cfg: DrawCfg): HTMLCanvasElement {
+  const dpr = window.devicePixelRatio || 1;
+  const c = document.createElement("canvas");
+  c.width  = BOARD_W * dpr;
+  c.height = cfg.BH * dpr;
+  const ctx = c.getContext("2d")!;
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = "#05050c";
+  ctx.fillRect(0, 0, BOARD_W, cfg.BH);
+  drawPegs(ctx, cfg);
+  return c;
+}
+
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  cfg: DrawCfg,
+  ballBodies: { position: { x: number; y: number } }[],
+  trails: { x: number; y: number }[][],
+  activeBuckets: Record<number, number>,
+  pegCache: HTMLCanvasElement
+) {
+  const { rows, BH, PS, BR, BY, mults, numBuckets } = cfg;
+
+  // 1. Background + pegs from cache (single drawImage instead of 306 gradient objects)
+  ctx.drawImage(pegCache, 0, 0, BOARD_W, BH);
+
+  // 2. Buckets
   for (let b = 0; b < numBuckets; b++) {
     const cx   = bucketCX(b, rows);
     const bw   = PS - 3;
@@ -272,6 +289,7 @@ function PlinkoBoard({
   const cfg: DrawCfg = { rows, risk, BH, PS, RH, PR, BR, BY, mults, numBuckets };
 
   const canvasRef      = useRef<HTMLCanvasElement | null>(null);
+  const pegCacheRef    = useRef<HTMLCanvasElement | null>(null);
   const engineRef      = useRef<import("matter-js").Engine | null>(null);
   const runnerRef      = useRef<import("matter-js").Runner | null>(null);
   const rafRef         = useRef<number | null>(null);
@@ -290,7 +308,10 @@ function PlinkoBoard({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
-    drawFrame(ctx, cfg, [], [], {});
+    // Build peg cache once — reused every animation frame
+    const pegCache = buildPegCache(cfg);
+    pegCacheRef.current = pegCache;
+    drawFrame(ctx, cfg, [], [], {}, pegCache);
   }, [rows, risk]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Physics animation on animKey change ────────────────────────────────────
@@ -324,6 +345,10 @@ function PlinkoBoard({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.scale(dpr, dpr);
+
+      // Reuse cached peg canvas (built in static draw effect); rebuild if needed
+      const pegCache = pegCacheRef.current ?? buildPegCache(cfg);
+      pegCacheRef.current = pegCache;
 
       // Build engine
       const engine = Engine.create({ gravity: { x: 0, y: 0.4 } });
@@ -445,7 +470,7 @@ function PlinkoBoard({
           if (trailsRef.current[i].length > 14) trailsRef.current[i].shift();
         }
 
-        drawFrame(ctx, cfg, ballBodies, trailsRef.current, activeBucketsRef.current);
+        drawFrame(ctx, cfg, ballBodies, trailsRef.current, activeBucketsRef.current, pegCache);
         rafRef.current = requestAnimationFrame(renderLoop);
       };
       rafRef.current = requestAnimationFrame(renderLoop);
